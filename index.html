@@ -2792,9 +2792,41 @@
   </div>
 
   <!-- Footer -->
+  <!-- ========================================== -->
+  <!-- MODALE LEGALE: PRIVACY, COOKIE & TERMINI  -->
+  <!-- ========================================== -->
+  <div id="legal-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 800px; max-height: 80vh; display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+      <div class="modal-header" style="padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <h3 class="modal-title" id="legal-modal-title" style="margin: 0; color: var(--gold); font-family: 'Outfit', sans-serif;">Informativa Legale</h3>
+        <button class="modal-close" onclick="closeLegalModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;">&times;</button>
+      </div>
+      <div id="legal-modal-body" style="overflow-y: auto; padding: 24px; font-size: 0.9rem; line-height: 1.6; color: var(--text-light); text-align: left; max-height: 60vh;">
+        <!-- Il testo legale verrà inserito dinamicamente tramite JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Cookie Banner -->
+  <div id="cookie-banner" style="position: fixed; bottom: 24px; left: 24px; right: 24px; max-width: 500px; background: rgba(51, 51, 51, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 10000; display: none; text-align: left; transform: translateY(100px); transition: transform 0.5s cubic-bezier(0.1, 0.76, 0.55, 0.94), opacity 0.5s; opacity: 0;">
+    <div style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 16px; line-height: 1.5;">
+      🐗 <b>Toscanaccio usa i cookie!</b> Utilizziamo i cookie per migliorare la tua esperienza di navigazione gastronomica, per la telemetria live del SandenVendo H24 e per simulare i pagamenti bancari. Leggi la nostra <a href="#" onclick="openLegalModal('cookie')" style="color: var(--terracotta-light); text-decoration: underline;">Cookie Policy</a>.
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="btn-checkout" style="padding: 8px 16px; font-size: 0.85rem; background: transparent; border: 1px solid var(--text-muted); color: var(--text-light); cursor: pointer;" onclick="acceptCookies(false)">Rifiuta</button>
+      <button class="btn-checkout" style="padding: 8px 16px; font-size: 0.85rem; cursor: pointer;" onclick="acceptCookies(true)">Accetta Tutto</button>
+    </div>
+  </div>
+
+  <!-- Footer -->
   <footer>
     <div class="container">
       <p>&copy; 2026 Toscanaccio &middot; Gastronomia Toscana H24 &middot; Tutti i diritti riservati.</p>
+      <p style="font-size:0.8rem; margin: 8px 0 12px;">
+        <a href="#" style="color:var(--text-muted); margin: 0 8px; text-decoration:underline" onclick="openLegalModal('privacy')">Privacy Policy</a> &middot;
+        <a href="#" style="color:var(--text-muted); margin: 0 8px; text-decoration:underline" onclick="openLegalModal('cookie')">Cookie Policy</a> &middot;
+        <a href="#" style="color:var(--text-muted); margin: 0 8px; text-decoration:underline" onclick="openLegalModal('terms')">Termini & Condizioni</a>
+      </p>
       <p style="font-size:0.75rem; color:var(--text-muted)">Powered by Antigravity AI Engine &middot; Connesso via API Cloud in protocollo MDB e POS ISO 8583</p>
     </div>
   </footer>
@@ -2806,6 +2838,123 @@
     // --- Configurazione ed Endpoint API ---
     const API_BASE = "https://api.toscanaccio.eu";
     
+    // --- Legal & Cookie Banner Systems ---
+    function openLegalModal(type) {
+      const modal = document.getElementById("legal-modal");
+      const title = document.getElementById("legal-modal-title");
+      const body = document.getElementById("legal-modal-body");
+      
+      let htmlContent = "";
+      
+      if (type === 'privacy') {
+        title.innerHTML = "🛡️ Privacy Policy — Toscanaccio";
+        htmlContent = `
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">1. Titolare del Trattamento dei Dati</h4>
+          <p>Il Titolare del trattamento per il sito web <b>toscanaccio.eu</b> e per il servizio di gastronomia fisica e automatizzata H24 è <b>Toscanaccio di Claudio Dall'Oro</b>, con sede in Via Machiavelli 102, Livorno. Email: <a href="mailto:claudio@toscanaccio.it" style="color:var(--terracotta-light)">claudio@toscanaccio.it</a>.</p>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">2. Tipologia di Dati Raccolti</h4>
+          <p>Raccogliamo ed elaboriamo le seguenti categorie di dati:</p>
+          <ul>
+            <li><b>Dati del Cliente:</b> Nome, indirizzo e-mail, numero di telefono, dati di fatturazione e indirizzo di spedizione (per il delivery a km 0 operato dai nostri rider interni).</li>
+            <li><b>Dati dell'Hardware:</b> Dati di transazione finanziaria del distributore automatico SandenVendo (tramite interfaccia MDB standard e tracciamento dei pacchetti POS ISO 8583 in tempo reale).</li>
+            <li><b>Dati di navigazione e I.A.:</b> Log di riconoscimento piatti ed eventuali immagini acquisite dalla webcam della cassa per la scansione automatica dei prodotti (elaborati localmente tramite TensorFlow/MobileNet).</li>
+          </ul>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">3. Finalità del Trattamento</h4>
+          <p>I tuoi dati sono trattati esclusivamente per:</p>
+          <ol>
+            <li>Gestire gli ordini live da asporto (Pick-up) e consegna a domicilio (Rider).</li>
+            <li>Generare i codici segreti a 6 cifre per lo sblocco degli slot sui nostri distributori automatici H24.</li>
+            <li>Simulare ed elaborare transazioni di pagamento cashless sicure.</li>
+            <li>Inviare notifiche di allarmi e telemetria ai manutentori hardware in caso di guasti alle gettoniere.</li>
+          </ol>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">4. Base Giuridica del Trattamento</h4>
+          <p>Trattiamo i tuoi dati sulla base del consenso da te espresso, dell'esecuzione di un contratto (acquisto di cibo o prodotti) e del legittimo interesse del titolare a garantire il corretto funzionamento delle gettoniere e la sicurezza fisica dei distributori automatici H24.</p>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">5. Conservazione dei Dati</h4>
+          <p>I dati personali relativi agli acquisti e alle consegne dei rider vengono conservati nel database protetto <b>toscanaccio.db</b> per il periodo strettamente necessario all'esecuzione dei servizi commerciali e nel rispetto degli obblighi di legge contabili e fiscali.</p>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">6. Diritti dell'Interessato</h4>
+          <p>Ai sensi del Regolamento Europeo GDPR (679/2016), hai il diritto in qualunque momento di richiedere l'accesso, la rettifica, la cancellazione o la limitazione del trattamento dei tuoi dati. Puoi inviare una richiesta all'indirizzo email sopra indicato.</p>
+        `;
+      } else if (type === 'cookie') {
+        title.innerHTML = "🍪 Cookie Policy — Toscanaccio";
+        htmlContent = `
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">1. Cosa sono i Cookie</h4>
+          <p>I cookie sono piccoli file di testo che i siti visitati dagli utenti inviano ai loro terminali, dove vengono memorizzati per essere ritrasmessi agli stessi siti in visite successive. Questo sito utilizza cookie tecnici ed analitici per ottimizzare la tua esperienza d'uso.</p>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">2. Tipologia di Cookie Utilizzati da questo Sito</h4>
+          <ul>
+            <li><b>Cookie Tecnici Essenziali:</b> Necessari per consentire l'autenticazione tramite JWT (JSON Web Tokens), permettendoti di accedere stabilmente alle aree protette di Rider e Gestore.</li>
+            <li><b>Cookie di Sessione del Carrello:</b> Utilizzati per salvare localmente i prodotti selezionati dalla cassa touch prima di procedere al pagamento.</li>
+            <li><b>Cookie di Telemetria e Hardware:</b> Cookie specifici per memorizzare lo stato di funzionamento simulato del distributore SandenVendo H24, comprese le promozioni climatiche dinamiche e i log POS ISO 8583.</li>
+          </ul>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">3. Gestione del Consenso</h4>
+          <p>All'accesso al nostro sito web, un banner ti consente di accettare o rifiutare l'uso dei cookie. Puoi modificare il tuo consenso in qualsiasi momento eliminando la cache del tuo browser o cliccando sui link legali nel piè di pagina.</p>
+        `;
+      } else if (type === 'terms') {
+        title.innerHTML = "📜 Termini e Condizioni — Toscanaccio";
+        htmlContent = `
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">1. Oggetto del Servizio</h4>
+          <p>Il marchio <b>Toscanaccio</b> opera sul territorio di Livorno offrendo la vendita diretta di piatti caldi pronti della cucina toscana, taglieri di prosciutteria DOP e prodotti artigianali (come sughi e ragù di cinghiale). Il servizio è erogato tramite asporto tradicional, consegna a domicilio a km 0 effettuata da rider (con speciali profili adattati ad accessibilità per disabili motori), e tramite distributori automatici intelligenti H24.</p>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">2. Flusso degli Ordini e Sblocco Distributori H24</h4>
+          <p>Quando acquisti un prodotto per la distribuzione automatica (Vending H24):</p>
+          <ul>
+            <li>Il sistema genera un codice di sblocco univoco a 6 cifre associato al tuo ordine.</li>
+            <li>Il codice deve essere digitato sulla tastiera del distributore fisico entro 2 ore dall'acquisto.</li>
+            <li>Il distributore erogherà il prodotto dallo slot assegnato attivando la spirale (interfaccia MDB). In caso di spirale bloccata, il sistema rimborserà l'importo o ti permetterà di scegliere uno slot alternativo.</li>
+          </ul>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">3. Pagamenti Contactless e POS ISO 8583</h4>
+          <p>Tutti i pagamenti digitali contactless effettuati sul nostro Kiosk simulano pacchetti finanziari conformi allo standard internazionale **ISO 8583**. Le transazioni commerciali sono protette da crittografia end-to-end.</p>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">4. Innovazione Sociale e Rider Inclusivi</h4>
+          <p>Toscanaccio sostiene attivamente il lavoro inclusivo per persone con disabilità motorie, dotando i nostri rider di tricicli speciali e carrozzine elettriche, con calcolo del percorso agevolato basato su rampe e pendenze tramite mappe Leaflet.js dedicate.</p>
+          
+          <h4 style="color:var(--terracotta); margin-top:20px; font-family:'Outfit',sans-serif;">5. Contenitori Termici 3D e Deposito Cauzionale</h4>
+          <p>I nostri contenitori da delivery sono stampati in 3D con tecnologia FDM e materiali food-safe conformi HACCP. Ciascun contenitore è provvisto di tag **NFC/RFID** sul coperchio. Al momento del delivery viene addebitato un deposito cauzionale di €2.00, che verrà rimborsato automaticamente restituendo il contenitore presso il distributore automatico o consegnandolo a un nostro rider.</p>
+        `;
+      }
+      
+      body.innerHTML = htmlContent;
+      modal.classList.add("active");
+    }
+    
+    function closeLegalModal() {
+      document.getElementById("legal-modal").classList.remove("active");
+    }
+    
+    function initCookieBanner() {
+      const consented = localStorage.getItem("cookie_consent");
+      if (!consented) {
+        const banner = document.getElementById("cookie-banner");
+        banner.style.display = "block";
+        setTimeout(() => {
+          banner.style.transform = "translateY(0)";
+          banner.style.opacity = "1";
+        }, 100);
+      }
+    }
+    
+    function acceptCookies(accepted) {
+      localStorage.setItem("cookie_consent", accepted ? "accepted" : "rejected");
+      const banner = document.getElementById("cookie-banner");
+      banner.style.transform = "translateY(100px)";
+      banner.style.opacity = "0";
+      setTimeout(() => {
+        banner.style.display = "none";
+      }, 500);
+      
+      if (accepted) {
+        showToast("🍪 Cookie accettati con successo!");
+      } else {
+        showToast("ℹ️ Cookie non essenziali rifiutati.");
+      }
+    }
+
     // --- Premium Toast Notification System ---
     function showToast(message, type = "success") {
       let container = document.getElementById("toast-container");
@@ -2918,6 +3067,9 @@
       
       // Popola il simulatore I.A. con i piatti caricati
       populateAISimulator();
+      
+      // Inizializza il banner dei cookie
+      initCookieBanner();
     });
 
     // --- Carica / Salva Sessione Autenticazione ---
