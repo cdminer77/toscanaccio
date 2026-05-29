@@ -3,7 +3,7 @@ import math
 from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import datetime, timedelta
-from passlib.context import CryptContext
+
 from .models import MenuItem, Order, OrderItem, Stock, VendingSlot, Rider, ProductRecognitionLog, OrderType, User, UserRole, NotificationLog
 from .schemas import OrderCreate, MenuItemCreate, ProductRecognitionCreate, UserCreate, StockUpdate, RiderUpdate, MenuItemUpdate, VendingSlotUpdate, UserUpdate, RiderCreate
 
