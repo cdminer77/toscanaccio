@@ -1,0 +1,6 @@
+app/
+requirements.txt
+run.py
+tests/
+toscanaccio.db
+.venv/
