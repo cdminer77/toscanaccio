@@ -1,0 +1,25 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing & IDEs
+.pytest_cache/
+.vscode/
+.idea/
+.DS_Store
+
+# Local Configuration (sensitive data)
+.env
+
+# Database backups or temporary files
+toscanaccio_old.db
+*.db-journal
+*.db-shm
+*.db-wal

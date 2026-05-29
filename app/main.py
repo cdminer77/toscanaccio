@@ -1,0 +1,549 @@
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import Session, select
+from typing import List, Optional
+from app.models import VendingSlot
+from datetime import datetime, timedelta
+from jose import jwt
+from app.database import get_session, create_db_and_tables, engine
+from app import crud
+from app import schemas
+from app.seed import seed_db
+
+# Configurazione JWT
+SECRET_KEY = "toscanaccio_segreto_di_stato_toscana"
+ALGORITHM = "HS256"
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(days=1)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+app = FastAPI(
+    title="Toscanaccio Backend API",
+    description="API Backend per il brand toscano Toscanaccio - Gastronomia & Vending H24",
+    version="1.1.0"
+)
+
+# Abilita CORS per lo sviluppo locale
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.on_event("startup")
+def on_startup():
+    # Inizializza il database e carica i dati di seed all'avvio del server
+    create_db_and_tables()
+    with Session(engine) as session:
+        seed_db(session)
+
+@app.get("/")
+def home():
+    return {
+        "status": "online",
+        "messaggio": "✅ Benvenuto sul backend di Toscanaccio! La cucina toscana H24 è pronta.",
+        "servizi": ["Asporto / Pick-up (12h)", "Consegna / Delivery (Rider interni)", "Distribuzione Automatica (Vending H24)"]
+    }
+
+# --- USER AUTHENTICATION API ---
+@app.post("/auth/register", response_model=schemas.UserRead, status_code=201)
+def register_user(user_data: schemas.UserCreate, session: Session = Depends(get_session)):
+    # Verifica se l'utente esiste già
+    existing_user = crud.get_user_by_username(session, user_data.username)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nome utente già registrato. Scegline un altro!"
+        )
+    existing_email = crud.get_user_by_email(session, user_data.email)
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email già registrata. Scegline un'altra!"
+        )
+    return crud.create_user(session, user_data)
+
+@app.post("/auth/login", response_model=schemas.Token)
+def login_user(login_data: schemas.UserLogin, session: Session = Depends(get_session)):
+    user = crud.get_user_by_username(session, login_data.username)
+    if not user or not crud.verify_password(login_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Nome utente o password non validi. Riprova!"
+        )
+    
+    # Genera token di accesso
+    access_token = create_access_token(
+        data={"sub": user.username, "role": user.role.value}
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user
+    }
+
+# --- MENU API ---
+@app.get("/menu", response_model=List[schemas.MenuItemRead])
+def read_menu(category: Optional[str] = None, session: Session = Depends(get_session)):
+    return crud.get_menu(session, category)
+
+# --- ORDERS API ---
+@app.post("/orders", response_model=schemas.OrderRead, status_code=201)
+def create_order(order_data: schemas.OrderCreate, session: Session = Depends(get_session)):
+    try:
+        return crud.create_order(session, order_data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/orders", response_model=List[schemas.OrderRead])
+def read_orders(
+    order_type: Optional[str] = None,
+    status: Optional[str] = None,
+    session: Session = Depends(get_session)
+):
+    return crud.get_orders(session, order_type, status)
+
+@app.patch("/orders/{order_id}", response_model=schemas.OrderRead)
+def update_order_status(
+    order_id: int,
+    status: str,
+    rider_id: Optional[int] = None,
+    session: Session = Depends(get_session)
+):
+    updated_order = crud.update_order_status(session, order_id, status, rider_id)
+    if not updated_order:
+        raise HTTPException(status_code=404, detail="Ordine non trovato")
+    return updated_order
+
+# --- USERS API ---
+@app.get("/users", response_model=List[schemas.UserRead])
+def get_all_users(session: Session = Depends(get_session)):
+    return crud.get_users(session)
+
+# --- WAREHOUSE & STOCK API ---
+@app.get("/stock")
+def get_warehouse_stock(session: Session = Depends(get_session)):
+    return crud.get_stock(session)
+
+@app.patch("/stock/{stock_id}")
+def update_warehouse_stock(stock_id: int, stock_data: schemas.StockUpdate, session: Session = Depends(get_session)):
+    updated_stock = crud.update_stock(session, stock_id, stock_data.current_quantity, stock_data.min_alert_threshold)
+    if not updated_stock:
+        raise HTTPException(status_code=404, detail="Stock item non trovato")
+    return updated_stock
+
+@app.get("/vending", response_model=List[schemas.VendingSlotRead])
+def get_vending_slots(session: Session = Depends(get_session)):
+    return crud.get_vending_slots(session)
+
+# --- RIDERS API ---
+@app.get("/riders", response_model=List[schemas.RiderRead])
+def get_riders(session: Session = Depends(get_session)):
+    return crud.get_riders(session)
+
+@app.patch("/riders/{rider_id}", response_model=schemas.RiderRead)
+def update_rider_details(rider_id: int, rider_data: schemas.RiderUpdate, session: Session = Depends(get_session)):
+    updated_rider = crud.update_rider(session, rider_id, rider_data)
+    if not updated_rider:
+        raise HTTPException(status_code=404, detail="Rider non trovato")
+    return updated_rider
+
+# --- PRODUCT RECOGNITION (I.A.) API ---
+@app.post("/recognition", response_model=schemas.ProductRecognitionRead)
+def log_recognition(log_data: schemas.ProductRecognitionCreate, session: Session = Depends(get_session)):
+    return crud.log_product_recognition(session, log_data)
+
+@app.get("/recognition", response_model=List[schemas.ProductRecognitionRead])
+def get_recognition_logs(session: Session = Depends(get_session)):
+    return crud.get_recognition_logs(session)
+
+# --- PREDICTIVE I.A. API ---
+@app.get("/predict")
+def get_predictions(session: Session = Depends(get_session)):
+    return crud.get_production_forecast(session)
+
+# --- ISO 8583 BANK INTERCHANGE EMULATOR & PAYMENT API ---
+def unpack_iso8583(msg: str):
+    """Decodifica un messaggio ISO 8583 in formato ASCII stringa (MTI + Bitmap 16 char + Campi)"""
+    if len(msg) < 20:
+        raise ValueError("Messaggio troppo corto per essere uno standard ISO 8583 valido")
+    
+    mti = msg[0:4]
+    bitmap_hex = msg[4:20]
+    
+    # Conversione bitmap esadecimale in binario a 64 bit
+    bitmap_bin = bin(int(bitmap_hex, 16))[2:].zfill(64)
+    
+    fields = {}
+    idx = 20
+    
+    # Mappatura lunghezze fisse dei campi supportati nella nostra simulazione
+    field_lens = {
+        3: 6,   # Processing Code (es: 000000 per acquisti)
+        4: 12,  # Amount, Transaction (in centesimi, es: 00000001390 = 13.90 EUR)
+        11: 6,  # STAN (Systems Trace Audit Number)
+        12: 6,  # Local Transaction Time (hhmmss)
+        13: 4,  # Local Transaction Date (MMDD)
+        37: 12, # RRN (Retrieval Reference Number)
+        39: 2,  # Response Code (es: 00 = Approvato)
+        41: 8,  # Card Acceptor Terminal ID
+        42: 15, # Card Acceptor Identification Code (Merchant ID)
+    }
+    
+    for f_num in sorted(field_lens.keys()):
+        # Il bitmap e' 1-indexed, quindi f_num - 1
+        bit_idx = f_num - 1
+        if bit_idx < len(bitmap_bin) and bitmap_bin[bit_idx] == '1':
+            length = field_lens[f_num]
+            if idx + length <= len(msg):
+                fields[f_num] = msg[idx : idx + length]
+                idx += length
+                
+    return mti, fields
+
+def pack_iso8583(mti: str, fields: dict):
+    """Codifica un dizionario di campi in un messaggio ISO 8583 formattato in stringa ASCII"""
+    bitmap_bin = ['0'] * 64
+    field_lens = {
+        3: 6, 4: 12, 11: 6, 12: 6, 13: 4, 37: 12, 39: 2, 41: 8, 42: 15
+    }
+    
+    for f_num in fields.keys():
+        if f_num in field_lens:
+            bitmap_bin[f_num - 1] = '1'
+        
+    bitmap_str = "".join(bitmap_bin)
+    bitmap_hex = hex(int(bitmap_str, 2))[2:].upper().zfill(16)
+    
+    msg = mti + bitmap_hex
+    for f_num in sorted(field_lens.keys()):
+        if f_num in fields:
+            val = str(fields[f_num])
+            length = field_lens[f_num]
+            # Pad con zeri a sinistra per rispettare la lunghezza
+            val = val.zfill(length)[:length]
+            msg += val
+            
+    return msg
+
+@app.post("/pos/iso8583")
+def process_pos_transaction(payload: dict, session: Session = Depends(get_session)):
+    """
+    Riceve un messaggio POS ISO 8583 grezzo (MTI 0200), lo analizza, esegue l'addebito
+    e restituisce il messaggio di approvazione della banca (MTI 0210, Field 39 = '00')
+    """
+    iso_request = payload.get("iso_message")
+    if not iso_request:
+        raise HTTPException(status_code=400, detail="Messaggio ISO 8583 non fornito!")
+        
+    try:
+        mti_req, fields_req = unpack_iso8583(iso_request)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Errore di parsing ISO 8583: {str(e)}")
+        
+    if mti_req != "0200":
+        raise HTTPException(status_code=400, detail="MTI non supportato. Inviare una richiesta finanziaria 0200")
+        
+    # Estrae dettagli
+    terminal_id = fields_req.get(41, "UNKNOWN ")
+    amount_cents = int(fields_req.get(4, "0"))
+    amount_eur = amount_cents / 100.0
+    stan = fields_req.get(11, "000000")
+    
+    # Genera i campi di risposta finanziaria
+    rrn = f"9381{stan.zfill(6)}03"  # RRN sintetico basato su STAN
+    local_time = datetime.now().strftime("%H%M%S")
+    local_date = datetime.now().strftime("%m%d")
+    
+    # Esegue l'approvazione bancaria (approvato al 100% se importo > 0)
+    response_code = "00"  # 00 = Transazione Approvata con Successo
+    if amount_cents <= 0:
+        response_code = "51"  # 51 = Fondi insufficienti (per test)
+        
+    fields_res = fields_req.copy()
+    fields_res[37] = rrn           # Field 37: RRN
+    fields_res[39] = response_code # Field 39: Response Code
+    fields_res[12] = local_time
+    fields_res[13] = local_date
+    
+    # Genera pacchetto ISO 8583 di risposta
+    iso_response = pack_iso8583("0210", fields_res)
+    
+    # Log nel database se la transazione e' associata a un ordine (opzionale)
+    return {
+        "status": "APPROVED" if response_code == "00" else "DECLINED",
+        "mti_request": mti_req,
+        "mti_response": "0210",
+        "parsed_request_fields": {
+            "3 (Processing Code)": fields_req.get(3),
+            "4 (Amount)": f"EUR {amount_eur:.2f}",
+            "11 (STAN)": stan,
+            "41 (Terminal ID)": terminal_id,
+            "42 (Merchant ID)": fields_req.get(42)
+        },
+        "response_fields": {
+            "37 (RRN)": rrn,
+            "39 (Response Code)": response_code,
+            "12 (Local Time)": local_time,
+            "13 (Local Date)": local_date
+        },
+        "raw_request": iso_request,
+        "raw_response": iso_response,
+        "gateway_logs": [
+            f"[BANK HOST] Connection established from POS terminal {terminal_id.strip()}",
+            f"[BANK HOST] Processing Financial Request (MTI 0200) for EUR {amount_eur:.2f}",
+            f"[BANK HOST] ISO8583 Primary Bitmap decoded: {iso_request[4:20]}",
+            f"[BANK HOST] Card authorized. STAN: {stan}, Generating RRN: {rrn}",
+            f"[BANK HOST] Transaction Approved. Packing Response Message (MTI 0210)",
+            f"[BANK HOST] Dispatching response packet to POS terminal"
+        ]
+    }
+
+# --- SANDENVENDO G-DRINK TELEMETRY & DIAGNOSTICS API ---
+# Stato allarmi dei distributori modificabile a runtime per simulazioni
+VENDING_TELEMETRY_STATE = {
+    "gdrink1": {
+        "name": "SandenVendo G-Drink 1 H24 (Cibo & Spume)",
+        "zone1_temp": 4.2,      # Temperatura zona bassa (4°C ideale per bibite)
+        "zone2_temp": 5.5,      # Temperatura zona alta (6°C ideale per cibo freddo)
+        "compressor_status": "RUNNING",
+        "door_open": False,
+        "grid_faults": [],
+        "gettoniera": {
+            "model": "MEI Cashflow 7900 (MDB 5-Tubi)",
+            "connection": "MDB Protocol (RS232-Adapter)",
+            "tubes": [
+                {"coin": "2.00 EUR", "count": 45, "status": "OK"},
+                {"coin": "1.00 EUR", "count": 52, "status": "OK"},
+                {"coin": "0.50 EUR", "count": 12, "status": "LOW"},  # Stato basso per allerta
+                {"coin": "0.20 EUR", "count": 85, "status": "OK"},
+                {"coin": "0.10 EUR", "count": 120, "status": "OK"}
+            ],
+            "total_cash_in_changer": 178.00,
+            "status": "OPERATIONAL"
+        }
+    },
+    "gdrink2": {
+        "name": "SandenVendo G-Drink 2 H24 (Birre & Vini Premium)",
+        "zone1_temp": 11.5,     # Temperatura vini bianchi/rossi (12°C ideale)
+        "zone2_temp": 12.8,
+        "compressor_status": "RUNNING",
+        "door_open": False,
+        "grid_faults": [],
+        "gettoniera": {
+            "model": "CPI Gryphon (MDB 6-Tubi USB)",
+            "connection": "USB-Serial MDB Direct Connection",
+            "tubes": [
+                {"coin": "2.00 EUR", "count": 80, "status": "OK"},
+                {"coin": "1.00 EUR", "count": 95, "status": "OK"},
+                {"coin": "0.50 EUR", "count": 64, "status": "OK"},
+                {"coin": "0.20 EUR", "count": 110, "status": "OK"},
+                {"coin": "0.10 EUR", "count": 150, "status": "OK"},
+                {"coin": "0.05 EUR", "count": 200, "status": "OK"}
+            ],
+            "total_cash_in_changer": 310.50,
+            "status": "OPERATIONAL"
+        }
+    }
+}
+
+@app.get("/vending/telemetry")
+def get_vending_telemetry():
+    """Restituisce la telemetria H24 dei due distributori SandenVendo G-Drink e gettoniere"""
+    return VENDING_TELEMETRY_STATE
+
+@app.post("/vending/telemetry/fault")
+def trigger_vending_fault(payload: dict, session: Session = Depends(get_session)):
+    """Simula o risolve anomalie sul distributore (temperatura alta, allarme spirale bloccata, cassa vuota)"""
+    machine = payload.get("machine") # gdrink1 o gdrink2
+    fault_type = payload.get("fault_type") # e.g. "C4_JAM", "TEMP_HIGH", "COIN_LOW", "CLEAR"
+    
+    if machine not in VENDING_TELEMETRY_STATE:
+        raise HTTPException(status_code=400, detail="Macchina non valida. Scegli gdrink1 o gdrink2")
+        
+    m_state = VENDING_TELEMETRY_STATE[machine]
+    
+    if fault_type == "CLEAR":
+        m_state["grid_faults"] = []
+        if machine == "gdrink1":
+            m_state["zone1_temp"] = 4.2
+            m_state["compressor_status"] = "RUNNING"
+            m_state["gettoniera"]["tubes"][2]["status"] = "OK"
+        else:
+            m_state["zone1_temp"] = 11.5
+            m_state["compressor_status"] = "RUNNING"
+        crud.create_notification_log(
+            session=session,
+            recipient_name="Claudio",
+            channel="WHATSAPP",
+            phone_number="+39 333 1234567",
+            message_content="[WhatsApp] RIPRISTINO TELEMETRIA: Stato distributori automatici H24 tornato alla normalità (CLEAR). Tutti i sistemi operativi.",
+            event_type="RESTORE_ALERT"
+        )
+    elif fault_type == "JAM":
+        m_state["grid_faults"].append("Spirale ripiano C bloccata (Slot C4)")
+        # Aggiorna lo stato anche nel DB per coerenza
+        slot = session.exec(select(VendingSlot).where(VendingSlot.position_code == "C4")).first()
+        if slot:
+            slot.status = "MAINTENANCE"
+            session.add(slot)
+            session.commit()
+        crud.create_notification_log(
+            session=session,
+            recipient_name="Claudio",
+            channel="WHATSAPP",
+            phone_number="+39 333 1234567",
+            message_content="[WhatsApp] ALLEGATO TELEMETRIA: Guasto rilevato presso G-Drink 1! Spirale ripiano C bloccata (Slot C4). Stato impostato a MANUTENZIONE nel DB.",
+            event_type="FAULT_ALERT"
+        )
+    elif fault_type == "TEMP_HIGH":
+        m_state["zone1_temp"] = 14.8
+        m_state["compressor_status"] = "OVERHEATED_ALARM"
+        crud.create_notification_log(
+            session=session,
+            recipient_name="Claudio",
+            channel="SMS",
+            phone_number="+39 333 1234567",
+            message_content="[SMS] EMERGENZA TELEMETRIA: Allarme temperatura elevata presso G-Drink 1! Rilevato: 14.8°C. Compressore in allarme termico.",
+            event_type="FAULT_ALERT"
+        )
+    elif fault_type == "COIN_LOW":
+        if machine == "gdrink1":
+            m_state["gettoniera"]["tubes"][2]["count"] = 2
+            m_state["gettoniera"]["tubes"][2]["status"] = "EMPTY_WARNING"
+        crud.create_notification_log(
+            session=session,
+            recipient_name="Claudio",
+            channel="WHATSAPP",
+            phone_number="+39 333 1234567",
+            message_content="[WhatsApp] ATTENZIONE CASSA: Livello monete da 0.50 EUR basso (count: 2) presso gettoniera MEI 7900 di G-Drink 1. Rifornire per evitare resto basso.",
+            event_type="FAULT_ALERT"
+        )
+            
+    return {"status": "UPDATED", "telemetry": m_state}
+
+# --- PROMOTIONS & SIMULATION API ---
+
+@app.get("/notifications", response_model=List[schemas.NotificationLogRead])
+def get_notifications(session: Session = Depends(get_session)):
+    """Restituisce tutti i log dei messaggi inviati simulati (SMS / WhatsApp)"""
+    return crud.get_notification_logs(session)
+
+@app.get("/vending/promos")
+def get_active_promos():
+    """Restituisce le promozioni attive in base a meteo e ora simulati"""
+    promos = []
+    if crud.WEATHER_STATE == "RAINY":
+        promos.append({
+            "name": "Sconto Pioggia ☔",
+            "discount": 0.10,
+            "description": "Sconto Maltempo H24: 10% di sconto su tutti gli articoli gastronomici!"
+        })
+    elif crud.WEATHER_STATE == "STORMY":
+        promos.append({
+            "name": "Sconto Tempesta ⚡",
+            "discount": 0.20,
+            "description": "Sconto Shock Maltempo: 20% di sconto per farti coraggio ed uscire!"
+        })
+        
+    if crud.SIMULATED_LATE_NIGHT:
+        promos.append({
+            "name": "Spuntino Notturno 🌙",
+            "discount": 0.15,
+            "description": "Promozione Fame Notturna: 15% di sconto su tutto il menu tra le 00:00 e le 04:00!"
+        })
+        
+    return {
+        "weather": crud.WEATHER_STATE,
+        "simulated_late_night": crud.SIMULATED_LATE_NIGHT,
+        "promos": promos
+    }
+
+@app.post("/vending/simulation")
+def update_simulation_state(payload: dict):
+    """Aggiorna lo stato di simulazione di meteo e ore per testare le promozioni dinamiche"""
+    if "weather" in payload:
+        crud.WEATHER_STATE = payload["weather"]
+    if "simulated_late_night" in payload:
+        crud.SIMULATED_LATE_NIGHT = payload["simulated_late_night"]
+    return {
+        "status": "UPDATED",
+        "weather": crud.WEATHER_STATE,
+        "simulated_late_night": crud.SIMULATED_LATE_NIGHT
+    }
+
+# --- ADMIN FULL CRUD ENDPOINTS ---
+
+@app.post("/menu", response_model=schemas.MenuItemRead, status_code=201)
+def create_menu_item(item_data: schemas.MenuItemCreate, session: Session = Depends(get_session)):
+    """Crea un nuovo prodotto nel menu"""
+    try:
+        return crud.create_menu_item(session, item_data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.patch("/menu/{item_id}", response_model=schemas.MenuItemRead)
+def update_menu_item(item_id: int, item_data: schemas.MenuItemUpdate, session: Session = Depends(get_session)):
+    """Aggiorna le informazioni di un prodotto nel menu"""
+    updated_item = crud.update_menu_item(session, item_id, item_data)
+    if not updated_item:
+        raise HTTPException(status_code=404, detail="Prodotto non trovato")
+    return updated_item
+
+@app.delete("/menu/{item_id}", status_code=200)
+def delete_menu_item(item_id: int, session: Session = Depends(get_session)):
+    """Rimuove un prodotto dal menu"""
+    success = crud.delete_menu_item(session, item_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Prodotto non trovato")
+    return {"status": "DELETED", "message": f"Prodotto {item_id} eliminato con successo."}
+
+@app.patch("/vending/{slot_id}", response_model=schemas.VendingSlotRead)
+def update_vending_slot(slot_id: int, slot_data: schemas.VendingSlotUpdate, session: Session = Depends(get_session)):
+    """Aggiorna le informazioni e il prodotto assegnato a uno slot del distributore automatico"""
+    updated_slot = crud.update_vending_slot(session, slot_id, slot_data)
+    if not updated_slot:
+        raise HTTPException(status_code=404, detail="Slot non trovato")
+    return updated_slot
+
+@app.patch("/users/{user_id}", response_model=schemas.UserRead)
+def update_user_details(user_id: int, user_data: schemas.UserUpdate, session: Session = Depends(get_session)):
+    """Modifica i dati o il ruolo di un utente"""
+    updated_user = crud.update_user(session, user_id, user_data)
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    return updated_user
+
+@app.delete("/users/{user_id}", status_code=200)
+def delete_user(user_id: int, session: Session = Depends(get_session)):
+    """Rimuove un utente dal sistema"""
+    success = crud.delete_user(session, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    return {"status": "DELETED", "message": f"Utente {user_id} eliminato con successo."}
+
+@app.post("/riders", response_model=schemas.RiderRead, status_code=201)
+def create_rider(rider_data: schemas.RiderCreate, session: Session = Depends(get_session)):
+    """Registra un nuovo Rider nel sistema"""
+    try:
+        return crud.create_rider(session, rider_data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/riders/{rider_id}", status_code=200)
+def delete_rider(rider_id: int, session: Session = Depends(get_session)):
+    """Rimuove un Rider dal sistema"""
+    success = crud.delete_rider(session, rider_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Rider non trovato")
+    return {"status": "DELETED", "message": f"Rider {rider_id} rimosso con successo."}
+
