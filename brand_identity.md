@@ -50,7 +50,7 @@ I valori stabiliti nella Brand Board sono stati inseriti in cima alla cassa e al
 ## 📦 Packaging & Mockup del Brand
 
 Il design coordinato si estende a tutti i punti di contatto fisici dell'utente:
-1. **Il Vending Machine H24**: Un distributore SandenVendo personalizzato con grafiche verdi e gialle, che illustrano i panini toscani e i piatti pronti, creando un impatto visivo premium nelle strade di Livorno.
+1. **Il Vending Machine H24**: 2 distributori SandenVendo personalizzato con grafiche verdi e gialle, che illustrano i panini toscani e i piatti pronti, creando un impatto visivo premium nelle strade di Livorno.
 2. **Il Sacchetto da Asporto**: Sacchetto in carta kraft grezza con il logo stampato in verde oliva, biodegradabile e rustico.
 3. **Contenitore in Vetro con Coperchio Verde**: Vaschetta riutilizzabile in vetro pyrex con coperchio verde oliva Toscanaccio, ideale per riscaldare i piatti pronti al microonde e ridurre l'uso di plastica.
 4. **Tote Bag (Sportina in Tela)**: Sacca in cotone naturale per la spesa dei prodotti artigianali (come i barattoli di Ragù di Cinghiale).

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 from typing import List, Optional
 from app.models import VendingSlot
@@ -29,6 +30,8 @@ app = FastAPI(
     description="API Backend per il brand toscano Toscanaccio - Gastronomia & Vending H24",
     version="1.1.0"
 )
+
+app.mount("/files", StaticFiles(directory="files"), name="files")
 
 # Abilita CORS per lo sviluppo locale
 app.add_middleware(
@@ -306,6 +309,142 @@ def process_pos_transaction(payload: dict, session: Session = Depends(get_sessio
             f"[BANK HOST] Transaction Approved. Packing Response Message (MTI 0210)",
             f"[BANK HOST] Dispatching response packet to POS terminal"
         ]
+    }
+
+# --- SIMULATORE GATEWAY FINANZIARI DI PAGAMENTO (Satispay, PayPal, Crypto stablecoin Polygon) ---
+import uuid
+
+# Dizionario in-memory per tracciare lo stato dei pagamenti Satispay simulati
+SATISPAY_PAYMENTS = {}
+
+@app.post("/payments/satispay/request")
+def create_satispay_payment(payload: dict, session: Session = Depends(get_session)):
+    """Simula l'avvio di una richiesta di pagamento push su Satispay"""
+    phone = payload.get("phone_number")
+    amount = payload.get("amount", 0.0)
+    
+    if not phone:
+        raise HTTPException(status_code=400, detail="Numero di telefono Satispay richiesto!")
+        
+    payment_id = str(uuid.uuid4())
+    SATISPAY_PAYMENTS[payment_id] = {
+        "payment_id": payment_id,
+        "phone_number": phone,
+        "amount": amount,
+        "status": "PENDING",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Crea notifica WhatsApp di notifica push simulata
+    crud.create_notification_log(
+        session=session,
+        recipient_name="Cliente Satispay",
+        channel="WHATSAPP",
+        phone_number=phone,
+        message_content=f"[Satispay App] Toscanaccio ti ha inviato una richiesta di addebito di € {amount:.2f}. Clicca qui per autorizzare sul tuo smartphone.",
+        event_type="FAULT_ALERT"
+    )
+    
+    return {
+        "payment_id": payment_id,
+        "status": "PENDING",
+        "qr_code_url": "https://raw.githubusercontent.com/satispay/brand/master/satispay-logo.png",
+        "message": "Richiesta push inviata con successo allo smartphone dell'utente!"
+    }
+
+@app.get("/payments/satispay/status/{payment_id}")
+def check_satispay_status(payment_id: str):
+    """Controlla lo stato corrente della transazione Satispay"""
+    payment = SATISPAY_PAYMENTS.get(payment_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Pagamento non trovato!")
+    return payment
+
+@app.post("/payments/satispay/approve/{payment_id}")
+def approve_satispay_payment(payment_id: str, session: Session = Depends(get_session)):
+    """Simula l'approvazione del pagamento dall'app Satispay dell'utente"""
+    payment = SATISPAY_PAYMENTS.get(payment_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Pagamento non trovato!")
+        
+    payment["status"] = "APPROVED"
+    
+    crud.create_notification_log(
+        session=session,
+        recipient_name="Claudio",
+        channel="WHATSAPP",
+        phone_number="+39 333 1234567",
+        message_content=f"[Satispay API] Incasso autorizzato di € {payment['amount']:.2f} da {payment['phone_number']}. Transazione Satispay completata.",
+        event_type="DELIVERY_ASSIGNED"
+    )
+    
+    return {"status": "APPROVED", "message": "Pagamento approvato con successo via app!"}
+
+@app.post("/payments/crypto/invoice")
+def create_crypto_invoice(payload: dict):
+    """Genera i dettagli per un pagamento in stablecoin EURT su rete Polygon"""
+    amount_eur = payload.get("amount", 0.0)
+    amount_eurt = amount_eur
+    
+    wallet_address = "0x705ca927d3B31660cBF1Cc53De9Ce8bB97A4a721"
+    token_address = "0xE11A168FCc20D0F266e56876399047b532187569"
+    
+    return {
+        "status": "UNPAID",
+        "network": "Polygon Mainnet",
+        "currency": "EURT (Tether Euro)",
+        "amount": amount_eurt,
+        "merchant_wallet": wallet_address,
+        "token_contract_address": token_address,
+        "payment_qr_code": f"ethereum:{token_address}@137/transfer?address={wallet_address}&uint256={int(amount_eurt * 1e6)}"
+    }
+
+@app.post("/payments/crypto/verify")
+def verify_crypto_payment(payload: dict, session: Session = Depends(get_session)):
+    """Verifica un hash transazione fittizio e simula block mining per EURT Polygon"""
+    tx_hash = payload.get("tx_hash")
+    amount = payload.get("amount", 0.0)
+    
+    if not tx_hash or not tx_hash.startswith("0x") or len(tx_hash) != 66:
+        raise HTTPException(status_code=400, detail="Hash transazione EVM non valido! Deve iniziare con 0x ed essere di 66 caratteri.")
+        
+    crud.create_notification_log(
+        session=session,
+        recipient_name="Claudio",
+        channel="WHATSAPP",
+        phone_number="+39 333 1234567",
+        message_content=f"[Polygon Web3] Rilevato trasferimento EURT di {amount:.2f} al wallet merchant. Tx: {tx_hash[:10]}...",
+        event_type="DELIVERY_ASSIGNED"
+    )
+    
+    return {
+        "status": "CONFIRMED",
+        "tx_hash": tx_hash,
+        "block_number": 8943152,
+        "confirmations": 3,
+        "gas_used": 65120,
+        "message": "Transazione stablecoin confermata su Polygon Blockchain!"
+    }
+
+@app.post("/payments/paypal/authorize")
+def authorize_paypal_payment(payload: dict, session: Session = Depends(get_session)):
+    """Simula l'approvazione immediata a un click dell'ordine PayPal"""
+    amount = payload.get("amount", 0.0)
+    paypal_order_id = f"PAYID-{str(uuid.uuid4())[:20].upper()}"
+    
+    crud.create_notification_log(
+        session=session,
+        recipient_name="Claudio",
+        channel="WHATSAPP",
+        phone_number="+39 333 1234567",
+        message_content=f"[PayPal API] Addebito completato di € {amount:.2f}. PayPal Order ID: {paypal_order_id}",
+        event_type="DELIVERY_ASSIGNED"
+    )
+    
+    return {
+        "status": "APPROVED",
+        "paypal_order_id": paypal_order_id,
+        "message": "Autorizzazione PayPal eseguita con successo!"
     }
 
 # --- SANDENVENDO G-DRINK TELEMETRY & DIAGNOSTICS API ---

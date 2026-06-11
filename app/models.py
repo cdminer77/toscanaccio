@@ -4,6 +4,13 @@ from enum import Enum
 from datetime import datetime
 
 class Category(str, Enum):
+    DOLCE = "Dolce"
+    PIATTO_UNICO = "Piatto unico"
+    QUINTO_QUARTO = "Quinto quarto"
+    SECONDO_CARNE = "Secondo di carne"
+    STREET_FOOD = "Street food / territorio"
+    ZUPPA = "Zuppa"
+    ZUPPA_PESCE = "Zuppa di pesce"
     GASTRONOMIA = "GASTRONOMIA"
     PROSCIUTTERIA = "PROSCIUTTERIA"
     SNACK = "SNACK"
@@ -37,6 +44,14 @@ class MenuItem(SQLModel, table=True):
     available: bool = True
     daily_limit: Optional[int] = None  # per "Piatto del Giorno"
     version_size: Optional[str] = Field(default=None)  # "250g", "400g", "1kg", "standard"
+    code: str = Field(default="")
+    food_cost_pct: float = Field(default=0.0)
+    container_code: str = Field(default="PYR-S")
+    channels: str = Field(default="[]")
+    availability_notes: Optional[str] = None
+    note_ops: Optional[str] = None
+    is_signature: bool = Field(default=False)
+    is_vegan: bool = Field(default=False)
 
 class Stock(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -72,6 +87,11 @@ class Order(SQLModel, table=True):
     status: str = "PENDING"  # PENDING, CONFIRMED, READY, DELIVERED, COMPLETED
     rider_id: Optional[int] = Field(default=None, foreign_key="rider.id")
     vending_code: Optional[str] = None  # Codice per ritiro da distributore
+    
+    # Nuovi campi per tracciabilità pagamenti
+    payment_method: str = Field(default="POS")  # CASH, POS, PAYPAL, SATISPAY, CRYPTO_EURT
+    payment_status: str = Field(default="PAID")  # UNPAID, PAID, REFUNDED, FAILED
+    payment_tx_id: Optional[str] = Field(default=None)  # ID transazione (Paypal, Satispay o Blockchain hash)
     
     # Campi geografici e tariffari (Fase 2)
     latitude: Optional[float] = None

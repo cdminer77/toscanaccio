@@ -233,3 +233,83 @@ def test_admin_crud_menu_item(client: TestClient):
     response_get = client.get("/menu")
     all_items = response_get.json()
     assert not any(item["id"] == new_item_id for item in all_items)
+
+def test_create_order_with_new_payments(client: TestClient, session: Session):
+    """Verifica la creazione di un ordine specificando un metodo di pagamento personalizzato (es: Satispay)."""
+    item = session.exec(select(MenuItem)).first()
+    assert item is not None
+
+    order_payload = {
+        "order_type": "DELIVERY",
+        "customer_name": "Claudio Bianchi",
+        "customer_phone": "+39 333 7776655",
+        "address": "Via della Fortezza 4, Livorno",
+        "payment_method": "SATISPAY",
+        "payment_status": "PAID",
+        "payment_tx_id": "MOCK-SATISPAY-TX-999",
+        "items": [
+            {"menu_item_id": item.id, "quantity": 1}
+        ]
+    }
+    
+    response = client.post("/orders", json=order_payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["customer_name"] == "Claudio Bianchi"
+    assert data["payment_method"] == "SATISPAY"
+    assert data["payment_status"] == "PAID"
+    assert data["payment_tx_id"] == "MOCK-SATISPAY-TX-999"
+
+def test_satispay_simulation_endpoints(client: TestClient):
+    """Verifica gli endpoint di simulazione di Satispay (richiesta push ed approvazione)."""
+    payload = {
+        "phone_number": "+39 333 1122334",
+        "amount": 18.50
+    }
+    response_req = client.post("/payments/satispay/request", json=payload)
+    assert response_req.status_code == 200
+    data_req = response_req.json()
+    assert data_req["status"] == "PENDING"
+    assert "payment_id" in data_req
+    
+    payment_id = data_req["payment_id"]
+    
+    # Verifica stato pending
+    response_status = client.get(f"/payments/satispay/status/{payment_id}")
+    assert response_status.status_code == 200
+    assert response_status.json()["status"] == "PENDING"
+    
+    # Simula approvazione
+    response_approve = client.post(f"/payments/satispay/approve/{payment_id}")
+    assert response_approve.status_code == 200
+    assert response_approve.json()["status"] == "APPROVED"
+
+def test_crypto_simulation_endpoints(client: TestClient):
+    """Verifica la simulazione del gateway in stablecoin EURT su Polygon."""
+    payload = {"amount": 25.50}
+    response_inv = client.post("/payments/crypto/invoice", json=payload)
+    assert response_inv.status_code == 200
+    data_inv = response_inv.json()
+    assert data_inv["status"] == "UNPAID"
+    assert data_inv["network"] == "Polygon Mainnet"
+    assert data_inv["amount"] == 25.50
+    
+    # Verifica validazione fittizia transazione
+    verify_payload = {
+        "tx_hash": "0x8a92b7c4d5e6f3a1c890124354675869faebcd01ab2c3d4e5f60718293a4b5c6",
+        "amount": 25.50
+    }
+    response_ver = client.post("/payments/crypto/verify", json=verify_payload)
+    assert response_ver.status_code == 200
+    data_ver = response_ver.json()
+    assert data_ver["status"] == "CONFIRMED"
+    assert data_ver["confirmations"] == 3
+
+def test_paypal_simulation_endpoints(client: TestClient):
+    """Verifica la simulazione dell'autorizzazione PayPal."""
+    payload = {"amount": 12.00}
+    response = client.post("/payments/paypal/authorize", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "APPROVED"
+    assert "paypal_order_id" in data

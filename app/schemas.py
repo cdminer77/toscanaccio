@@ -35,6 +35,14 @@ class MenuItemRead(BaseModel):
     category: Category
     available: bool
     version_size: Optional[str] = None
+    code: str
+    food_cost_pct: float
+    container_code: str
+    channels: str
+    availability_notes: Optional[str] = None
+    note_ops: Optional[str] = None
+    is_signature: bool
+    is_vegan: bool
 
 class MenuItemCreate(BaseModel):
     name: str
@@ -44,6 +52,14 @@ class MenuItemCreate(BaseModel):
     available: bool = True
     daily_limit: Optional[int] = None
     version_size: Optional[str] = None
+    code: Optional[str] = ""
+    food_cost_pct: Optional[float] = 0.0
+    container_code: Optional[str] = "PYR-S"
+    channels: Optional[str] = "[]"
+    availability_notes: Optional[str] = None
+    note_ops: Optional[str] = None
+    is_signature: Optional[bool] = False
+    is_vegan: Optional[bool] = False
 
 # OrderItem schemas
 class OrderItemCreate(BaseModel):
@@ -63,6 +79,9 @@ class OrderCreate(BaseModel):
     address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    payment_method: Optional[str] = "POS"
+    payment_status: Optional[str] = "PAID"
+    payment_tx_id: Optional[str] = None
     items: List[OrderItemCreate]
 
 class OrderRead(BaseModel):
@@ -76,6 +95,9 @@ class OrderRead(BaseModel):
     status: str
     rider_id: Optional[int] = None
     vending_code: Optional[str] = None
+    payment_method: str
+    payment_status: str
+    payment_tx_id: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     delivery_fee: Optional[float] = None
@@ -147,6 +169,14 @@ class MenuItemUpdate(BaseModel):
     available: Optional[bool] = None
     daily_limit: Optional[int] = None
     version_size: Optional[str] = None
+    code: Optional[str] = None
+    food_cost_pct: Optional[float] = None
+    container_code: Optional[str] = None
+    channels: Optional[str] = None
+    availability_notes: Optional[str] = None
+    note_ops: Optional[str] = None
+    is_signature: Optional[bool] = None
+    is_vegan: Optional[bool] = None
 
 class VendingSlotUpdate(BaseModel):
     menu_item_id: Optional[int] = None

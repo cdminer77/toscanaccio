@@ -9,57 +9,174 @@ def seed_db(session: Session):
         return
 
     items = [
-        # Primi Piatti Caldi & Gastronomia
-        MenuItem(name="Pappa al Pomodoro", description="Classica toscana con crostini e basilico fresco", price=9.90, category=Category.GASTRONOMIA),
-        MenuItem(name="Ribollita Toscana", description="Zuppa tradizionale di pane, fagioli e verdure selvatiche", price=10.50, category=Category.GASTRONOMIA),
-        MenuItem(name="Pappardelle al Sugo di Cinghiale", description="Hero product con pasta fresca all'uovo e cinghiale locale", price=13.90, category=Category.GASTRONOMIA),
-        MenuItem(name="Lasagne alla Toscana", description="Pasta al forno con ragù toscano cotto a fuoco lento", price=12.90, category=Category.GASTRONOMIA),
-        MenuItem(name="Cacciucco Livornese", description="Zuppa di pesce ricca e saporita con pane agliato", price=14.90, category=Category.GASTRONOMIA),
-        MenuItem(name="Zuppa di Legumi e Farro", description="Zuppa contadina toscana ad alta digeribilita'", price=9.50, category=Category.GASTRONOMIA),
-        MenuItem(name="Peposo dell'Impruneta", description="Spezzatino di manzo toscano stracotto con pepe nero e Chianti", price=15.90, category=Category.GASTRONOMIA),
-        MenuItem(name="Trippa alla Fiorentina", description="Trippa classica in umido con pomodoro e spolverata di pecorino", price=11.50, category=Category.GASTRONOMIA),
-        MenuItem(name="Cantucci di Prato con Vin Santo", description="Cantucci artigianali alle mandorle serviti con Vin Santo", price=8.00, category=Category.GASTRONOMIA),
-        
-        # Taglieri, Panini & Prosciutteria
-        MenuItem(name="Toscano Classico", description="Salumi misti toscani, finocchiona e pecorino semistagionato", price=18.00, category=Category.PROSCIUTTERIA),
-        MenuItem(name="Cinta Senese Experience", description="Tagliere deluxe con Prosciutto DOP di Cinta Senese e salumi rari", price=28.00, category=Category.PROSCIUTTERIA),
-        MenuItem(name="Pecorino Tour", description="Selezione di 3 pecorini toscani con confettura di cipolle e miele", price=25.00, category=Category.PROSCIUTTERIA),
-        MenuItem(name="Schiacciata Finocchiona & Pecorino", description="Schiacciata toscana ripiena di finocchiona locale e pecorino fresco", price=8.50, category=Category.PROSCIUTTERIA),
-        MenuItem(name="Schiacciata Prosciutto DOP & Tartufo", description="Schiacciata con prosciutto crudo toscano e crema al tartufo", price=9.50, category=Category.PROSCIUTTERIA),
-        MenuItem(name="Schiacciata Vegetariana Toscana", description="Con verdure grigliate, pecorino fresco e crema di basilico", price=7.50, category=Category.PROSCIUTTERIA),
-
-        # Bevande Locali e Birre (adatte per distributore SandenVendo G-Drink)
-        MenuItem(name="Spuma Bionda Toscana", description="La storica bibita gassata toscana, dolce e aromatica (33cl)", price=2.50, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Spuma Nera del Valdarno", description="Spuma scura toscana tradizionale con estratto di rabarbaro (33cl)", price=2.50, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Chinotto Toscano", description="Bibita analcolica dal sapore piacevolmente amaro (33cl)", price=2.80, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Gassosa Lucchese", description="Gassosa locale prodotta secondo ricetta storica (33cl)", price=2.50, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Cedrata dei Fiori", description="Cedrata profumata e rinfrescante (33cl)", price=2.80, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Acqua Naturale San Felice", description="Acqua minerale toscana in bottiglia di vetro (50cl)", price=1.50, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Acqua Frizzante San Felice", description="Acqua gassata toscana in bottiglia di vetro (50cl)", price=1.50, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Birra Artigianale Livornese IPA", description="Birra bionda luppolata prodotta a Livorno (33cl)", price=5.50, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Birra Artigianale Livornese Rossa", description="Birra ambrata doppio malto, corpo pieno (33cl)", price=5.50, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Birra Mastio Bionda", description="Birra artigianale a bassa fermentazione, rinfrescante (33cl)", price=5.00, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Chianti Classico DOCG (375ml)", description="Mezza bottiglia di vino rosso Chianti Classico DOCG", price=12.00, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Vernaccia di San Gimignano (375ml)", description="Mezza bottiglia di vino bianco Vernaccia DOCG", price=10.00, category=Category.BEVANDE, version_size="standard"),
-        MenuItem(name="Bolgheri Rosso DOC (375ml)", description="Mezza bottiglia di vino Bolgheri Rosso strutturato", price=16.00, category=Category.BEVANDE, version_size="standard"),
-
-        # Snack Salati e Cantuccini Monoporzione
-        MenuItem(name="Schiacciatine Croccanti", description="Schiacciatine toscane all'olio d'oliva in monoporzione", price=2.50, category=Category.SNACK, version_size="standard"),
-        MenuItem(name="Tarallini al Rosmarino", description="Tarallini artigianali aromatizzati al rosmarino", price=2.00, category=Category.SNACK, version_size="standard"),
-        MenuItem(name="Cantuccini alle Mandorle (Monoporzione)", description="Due cantucci di Prato artigianali perfetti come snack", price=1.50, category=Category.SNACK, version_size="standard"),
-
-        # Prodotto Artigianale Toscanaccio (Varianti con diverse grammature)
-        MenuItem(name="Ragù di Cinghiale Toscanaccio", description="Ragù selvatico artigianale della Garfagnana in vaso di vetro", price=8.90, category=Category.ARTIGIANALE, version_size="250g"),
-        MenuItem(name="Ragù di Cinghiale Toscanaccio", description="Ragù selvatico artigianale della Garfagnana in vaso di vetro", price=12.50, category=Category.ARTIGIANALE, version_size="400g"),
-        MenuItem(name="Ragù di Cinghiale Toscanaccio", description="Ragù selvatico artigianale della Garfagnana in vaso di vetro", price=24.90, category=Category.ARTIGIANALE, version_size="1kg"),
-
-        MenuItem(name="Pappa al Pomodoro Toscanaccio", description="Pronta da scaldare, ricetta storica con pomodori toscani", price=6.90, category=Category.ARTIGIANALE, version_size="250g"),
-        MenuItem(name="Pappa al Pomodoro Toscanaccio", description="Pronta da scaldare, ricetta storica con pomodori toscani", price=9.90, category=Category.ARTIGIANALE, version_size="400g"),
-        MenuItem(name="Pappa al Pomodoro Toscanaccio", description="Pronta da scaldare, ricetta storica con pomodori toscani", price=19.90, category=Category.ARTIGIANALE, version_size="1kg"),
-
-        MenuItem(name="Sugo all'Aglione Toscanaccio", description="Sugo tipico della Val di Chiana con aglio gigante toscano", price=5.90, category=Category.ARTIGIANALE, version_size="250g"),
-        MenuItem(name="Sugo all'Aglione Toscanaccio", description="Sugo tipico della Val di Chiana con aglio gigante toscano", price=8.50, category=Category.ARTIGIANALE, version_size="400g"),
-        MenuItem(name="Sugo all'Aglione Toscanaccio", description="Sugo tipico della Val di Chiana con aglio gigante toscano", price=16.90, category=Category.ARTIGIANALE, version_size="1kg"),
+        MenuItem(
+            code="TOS-001",
+            name="Cacciucco alla livornese",
+            description="Zuppa di pesce povero del Tirreno — scorfano, tracina, palombo, seppie, polpo, vongole — in brodetto di pomodoro speziato con peperoncino e vino rosso. Servita su fette di pane toscano abbrustolito strofinato d'aglio. Almeno 5 tipi di pesce come da tradizione.",
+            price=13.0,
+            category=Category.ZUPPA_PESCE,
+            food_cost_pct=0.38,
+            container_code="PYR-L",
+            channels='["walk-in"]',
+            availability_notes="Quantità limitata giornaliera — esaurito in fretta",
+            note_ops="Preparazione batch ogni mattina. Porzioni fisse: 15–20 pranzo, 10 cena.",
+            is_signature=True,
+            is_vegan=False
+        ),
+        MenuItem(
+            code="TOS-002",
+            name="Cinghiale in salmì",
+            description="Cinghiale maremmano marinato 24h in vino rosso con ginepro, alloro e chiodi di garofano. Cottura lenta in casseruola. Servito con pane casereccio toscano.",
+            price=9.0,
+            category=Category.SECONDO_CARNE,
+            food_cost_pct=0.33,
+            container_code="PYR-L",
+            channels='["walk-in", "delivery"]',
+            availability_notes="Tutto l'anno — stagionalità autunno/inverno privilegiata",
+            note_ops="Marinatura 24h. Batch settimanale. Stagionale: disponibile da settembre.",
+            is_signature=True,
+            is_vegan=False
+        ),
+        MenuItem(
+            code="TOS-003",
+            name="Peposo dell'Impruneta",
+            description="Spezzatino di manzo al vino rosso e pepe nero in grani, cottura lenta. Ricetta della tradizione dei fornaciai dell'Impruneta.",
+            price=8.0,
+            category=Category.SECONDO_CARNE,
+            food_cost_pct=0.30,
+            container_code="PYR-S",
+            channels='["walk-in", "delivery"]',
+            availability_notes="Tutto l'anno",
+            note_ops="Cottura 3–4h. Batch giornaliero. Ottimo il giorno dopo.",
+            is_signature=True,
+            is_vegan=False
+        ),
+        MenuItem(
+            code="TOS-004",
+            name="Lampredotto in umido",
+            description="Quarto stomaco del bovino, cottura lunga in brodo aromatico con pomodoro, sedano e prezzemolo. Servito con pane sciocco toscano tostato. Il quinto quarto fiorentino più autentico.",
+            price=7.5,
+            category=Category.QUINTO_QUARTO,
+            food_cost_pct=0.22,
+            container_code="PYR-S",
+            channels='["walk-in"]',
+            availability_notes="Tutto l'anno — solo walk-in, servito caldo",
+            note_ops="Cottura lenta in brodo. Servire sempre ben caldo. Non adatto al delivery.",
+            is_signature=True,
+            is_vegan=False
+        ),
+        MenuItem(
+            code="TOS-005",
+            name="Ragù di chianina al cucchiaio",
+            description="Ragù lento di manzo Chianina IGP servito su crostone di pane toscano abbrustolito. Carne toscana tracciata, cottura di almeno 3 ore.",
+            price=7.0,
+            category=Category.PIATTO_UNICO,
+            food_cost_pct=0.28,
+            container_code="PYR-S",
+            channels='["walk-in", "delivery"]',
+            availability_notes="Tutto l'anno",
+            note_ops="Batch giornaliero. Il sugo migliora il giorno dopo.",
+            is_signature=False,
+            is_vegan=False
+        ),
+        MenuItem(
+            code="TOS-006",
+            name="Polpette al sugo della mamma",
+            description="Polpette di macinato misto con pane ammollato nel latte, in sugo di pomodoro lungo. Ricetta casalinga, comfort food autentico.",
+            price=7.0,
+            category=Category.SECONDO_CARNE,
+            food_cost_pct=0.27,
+            container_code="PYR-S",
+            channels='["walk-in", "delivery", "vending"]',
+            availability_notes="Tutto l'anno",
+            note_ops="Batch giornaliero. Reggono bene il trasporto e il vending.",
+            is_signature=False,
+            is_vegan=False
+        ),
+        MenuItem(
+            code="TOS-007",
+            name="Ribollita della nonna",
+            description="Zuppa povera toscana con cavolo nero, fagioli cannellini e pane raffermo tostato. La ricetta che non cambia da generazioni.",
+            price=6.5,
+            category=Category.ZUPPA,
+            food_cost_pct=0.24,
+            container_code="PYR-S",
+            channels='["walk-in", "delivery"]',
+            availability_notes="Tutto l'anno — preferibile autunno/inverno",
+            note_ops="Batch mattutino. Ribollita = riscaldata due volte, migliora.",
+            is_signature=True,
+            is_vegan=True
+        ),
+        MenuItem(
+            code="TOS-008",
+            name="Fagioli all'uccelletto con salsiccia",
+            description="Cannellini toscani in salsa di pomodoro con salvia e aglio, accompagnati da salsiccia artigianale. Piatto completo, proteico, della tradizione contadina.",
+            price=6.5,
+            category=Category.PIATTO_UNICO,
+            food_cost_pct=0.25,
+            container_code="PYR-S",
+            channels='["walk-in", "delivery", "vending"]',
+            availability_notes="Tutto l'anno",
+            note_ops="Batch giornaliero. Ottimo anche freddo — adatto al vending.",
+            is_signature=False,
+            is_vegan=False
+        ),
+        MenuItem(
+            code="TOS-009",
+            name="Zuppa di farro della Garfagnana",
+            description="Farro IGP della Garfagnana con legumi misti e verdure di stagione. Vegano, proteico, dal sapore rustico e autentico.",
+            price=6.0,
+            category=Category.ZUPPA,
+            food_cost_pct=0.21,
+            container_code="PYR-S",
+            channels='["walk-in", "delivery", "vending"]',
+            availability_notes="Tutto l'anno — rotazione verdure stagionali",
+            note_ops="Batch giornaliero. Ingredienti a lunga conservazione.",
+            is_signature=False,
+            is_vegan=True
+        ),
+        MenuItem(
+            code="TOS-010",
+            name="Pappa al pomodoro",
+            description="Pomodoro fresco (o pelato in inverno), pane sciocco toscano raffermo, basilico fresco, olio EVO toscano. Semplicità assoluta, sapore autentico.",
+            price=5.5,
+            category=Category.ZUPPA,
+            food_cost_pct=0.19,
+            container_code="PYR-S",
+            channels='["walk-in", "delivery", "vending"]',
+            availability_notes="Tutto l'anno — pomodoro fresco estate, pelato inverno",
+            note_ops="Massimo margine del menu. Batch veloce.",
+            is_signature=True,
+            is_vegan=True
+        ),
+        MenuItem(
+            code="TOS-011",
+            name="Cecìna livornese",
+            description="Torta di ceci livornese cotta in forno. Croccante fuori, morbida dentro. Il biglietto da visita di Livorno — una 'C' di appartenenza.",
+            price=3.5,
+            category=Category.STREET_FOOD,
+            food_cost_pct=0.14,
+            container_code="PYR-S",
+            channels='["walk-in", "vending"]',
+            availability_notes="Tutto l'anno",
+            note_ops="Produzione continua. Servire calda al walk-in. Versione confezionata per vending.",
+            is_signature=True,
+            is_vegan=True
+        ),
+        MenuItem(
+            code="TOS-012",
+            name="Cantucci con Vin Santo",
+            description="Biscotti di Prato al naturale in monoporzione da viaggio, accompagnati da Vin Santo toscano in miniatura. Perfetti per delivery e vending.",
+            price=3.0,
+            category=Category.DOLCE,
+            food_cost_pct=0.16,
+            container_code="PYR-S",
+            channels='["walk-in", "delivery", "vending"]',
+            availability_notes="Tutto l'anno",
+            note_ops="Monoporzione confezionata. Stock settimanale.",
+            is_signature=False,
+            is_vegan=False
+        ),
     ]
     
     for item in items:
@@ -79,8 +196,11 @@ def seed_db(session: Session):
     print("Stock iniziale popolato (25 unita per articolo)!")
 
     # 3. Popola 100 Vending Slots per la distribuzione automatica SandenVendo H24
-    # G-Drink 1: Ripiani A-E (Cibo freddo, piatti caldi pronti, bibite analcoliche) -> 50 slot
-    # G-Drink 2: Ripiani F-J (Vini DOP, birre artigianali, taglieri pronti, dolci) -> 50 slot
+    # Filtriamo solo gli articoli adatti al vending
+    vending_items = [item for item in items if "vending" in item.channels or item.code in ["TOS-006", "TOS-008", "TOS-009", "TOS-010", "TOS-011", "TOS-012"]]
+    if not vending_items:
+        vending_items = items
+
     slots = []
     
     shelves_machine_1 = ["A", "B", "C", "D", "E"]
@@ -89,46 +209,36 @@ def seed_db(session: Session):
     for shelf in shelves_machine_1:
         for column in range(1, 11):
             pos_code = shelf + str(column)
-            if shelf == "A": # Primi piatti caldi
-                item_idx = column % 5 
-            elif shelf == "B": # Altri piatti caldi e zuppe
-                item_idx = 5 + (column % 4)
-            elif shelf == "C": # Schiacciate e panini
-                item_idx = 12 + (column % 3)
-            elif shelf == "D": # Spume e bibite
-                item_idx = 15 + (column % 5)
-            else: # E: Acque e bibite
-                item_idx = 17 + (column % 5)
-                
+            # Distribuzione ciclica degli articoli da vending
+            v_idx = (ord(shelf) * 7 + column) % len(vending_items)
+            item_id = vending_items[v_idx].id
+            
             qty = random_initial_quantity(pos_code)
-            slots.append(VendingSlot(position_code=pos_code, menu_item_id=items[item_idx].id, current_quantity=qty, max_capacity=10, status="ACTIVE"))
+            slot_status = "ACTIVE"
+            if pos_code in ["D8"]:
+                slot_status = "MAINTENANCE"
+                qty = 2
+                
+            slots.append(VendingSlot(position_code=pos_code, menu_item_id=item_id, current_quantity=qty, max_capacity=10, status=slot_status))
 
     for shelf in shelves_machine_2:
         for column in range(1, 11):
             pos_code = shelf + str(column)
-            if shelf == "F": # Birre artigianali
-                item_idx = 22 + (column % 3)
-            elif shelf == "G": # Vini in mezza bottiglia
-                item_idx = 25 + (column % 3)
-            elif shelf == "H": # Taglieri pronti
-                item_idx = 9 + (column % 3)
-            elif shelf == "I": # Dolci e schiacciate
-                item_idx = 8 + (column % 5)
-            else: # J: Assortiti a caso per riempimento
-                item_idx = (column * 3) % len(items)
-
+            v_idx = (ord(shelf) * 11 + column * 3) % len(vending_items)
+            item_id = vending_items[v_idx].id
+            
             qty = random_initial_quantity(pos_code)
-            slot_item_id = items[item_idx].id
             slot_status = "ACTIVE"
+            
             if pos_code in ["F4", "H9", "J10"]:
-                slot_item_id = None
+                item_id = None
                 qty = 0
                 slot_status = "EMPTY"
-            elif pos_code in ["D8", "G3"]:
+            elif pos_code in ["G3"]:
                 slot_status = "MAINTENANCE"
                 qty = 2
                 
-            slots.append(VendingSlot(position_code=pos_code, menu_item_id=slot_item_id, current_quantity=qty, max_capacity=8 if "H" in pos_code or "G" in pos_code else 10, status=slot_status))
+            slots.append(VendingSlot(position_code=pos_code, menu_item_id=item_id, current_quantity=qty, max_capacity=8 if "H" in pos_code or "G" in pos_code else 10, status=slot_status))
 
     for slot in slots:
         session.add(slot)

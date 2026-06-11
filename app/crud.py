@@ -155,6 +155,9 @@ def create_order(session: Session, order_data: OrderCreate) -> Order:
         longitude=longitude,
         delivery_fee=delivery_fee,
         offer_expires_at=offer_expires_at,
+        payment_method=order_data.payment_method or "POS",
+        payment_status=order_data.payment_status or "PAID",
+        payment_tx_id=order_data.payment_tx_id,
         total=0.0
     )
     session.add(order)
@@ -211,8 +214,17 @@ def create_order(session: Session, order_data: OrderCreate) -> Order:
     session.refresh(order)
 
     # --- TRIGGER NOTIFICATIONS ON NEW ORDER ---
+    method_labels = {
+        "CASH": "Contanti in Loco",
+        "POS": "POS Carta di Credito",
+        "PAYPAL": "PayPal",
+        "SATISPAY": "Satispay Mobile",
+        "CRYPTO_EURT": "Stablecoin EURT (Polygon)"
+    }
+    method_name = method_labels.get(order.payment_method, order.payment_method)
+
     if order.order_type == OrderType.VENDING:
-        msg = f"Nuova vendita Vending H24! Totale: € {order.total:.2f}. Codice sblocco generato: {order.vending_code}. Ritiro immediato presso SandenVendo."
+        msg = f"Nuova vendita Vending H24! Metodo: {method_name}. Totale: € {order.total:.2f}. Codice sblocco generato: {order.vending_code}. Ritiro immediato presso SandenVendo."
         create_notification_log(
             session=session,
             recipient_name="Claudio",
@@ -222,7 +234,8 @@ def create_order(session: Session, order_data: OrderCreate) -> Order:
             event_type="NEW_ORDER"
         )
     elif order.order_type == OrderType.DELIVERY:
-        msg = f"Nuova consegna disponibile! Indirizzo: {order.address or 'Livorno'}. Cliente: {order.customer_name}. Compenso: € {order.delivery_fee:.2f}. Accetta entro 10 minuti!"
+        pay_info = "PAGAMENTO GIA' EFFETTUATO ONLINE. NON INCASSARE CONTANTI!" if order.payment_method != "CASH" else "RISCUOTERE CONTANTI ALLA CONSEGNA!"
+        msg = f"Nuova consegna! Indirizzo: {order.address or 'Livorno'}. Cliente: {order.customer_name}. Pagamento: {method_name}. {pay_info} Compenso: € {order.delivery_fee:.2f}."
         create_notification_log(
             session=session,
             recipient_name="Roberto",
@@ -334,7 +347,7 @@ def get_production_forecast(session: Session):
     from .models import Category
     for item in items:
         base_qty = 15
-        if item.category == Category.GASTRONOMIA:
+        if item.category in [Category.ZUPPA, Category.ZUPPA_PESCE, Category.SECONDO_CARNE, Category.QUINTO_QUARTO, Category.PIATTO_UNICO]:
             if item.price > 12.0:
                 base_qty = 12
             else:
@@ -345,13 +358,13 @@ def get_production_forecast(session: Session):
         recommended = int(base_qty * day_multiplier)
         
         reason = f"{day_reason}."
-        if item.name == "Pappardelle al Sugo di Cinghiale":
-            reason = f"Hero Product: {day_reason} (consigliato aumento del 20% sul sugo)."
-        elif item.name == "Cacciucco Livornese":
+        if item.name == "Cinghiale in salmì":
+            reason = f"Hero Product: {day_reason} (consigliato aumento del 20% per la marinatura)."
+        elif item.name == "Cacciucco alla livornese":
             reason = "Preparazione fresca di mare consigliata per massimo 12 porzioni giornaliere."
             recommended = min(12, recommended)
-        elif item.name == "Cinta Senese Experience":
-            reason = f"Tagliere Premium: Consigliata preparazione pre-confezionata H24 di {recommended} unità."
+        elif item.name == "Cecìna livornese":
+            reason = f"Specialità Territorio: Consigliata preparazione per il vending H24 di {recommended} unità."
 
         predictions.append({
             "menu_item_id": item.id,
