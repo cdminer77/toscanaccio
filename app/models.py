@@ -33,6 +33,7 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     hashed_password: str
     role: UserRole = Field(default=UserRole.CUSTOMER)
+    balance: float = Field(default=0.0)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class MenuItem(SQLModel, table=True):
@@ -52,6 +53,8 @@ class MenuItem(SQLModel, table=True):
     note_ops: Optional[str] = None
     is_signature: bool = Field(default=False)
     is_vegan: bool = Field(default=False)
+    requires_microwave: bool = Field(default=False)
+    requires_hot_water: bool = Field(default=False)
 
 class Stock(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -129,3 +132,33 @@ class NotificationLog(SQLModel, table=True):
     message_content: str
     event_type: str  # "FAULT_ALERT", "NEW_ORDER", "DELIVERY_ASSIGNED", "RESTORE_ALERT"
     status: str = "DELIVERED"
+
+class ArchivedDocument(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    filename: str
+    file_path: str
+    category: str  # AFFITTI, FISCALE, HARDWARE, CONTRATTI, UTENZE, INGREDIENTI
+    notes: Optional[str] = None
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+
+class AccountingEntry(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    date: datetime = Field(default_factory=datetime.utcnow)
+    description: str
+    entry_type: str  # ENTRATA / USCITA
+    amount: float  # Net amount
+    vat_amount: float
+    vat_rate: float  # 0.10 or 0.22
+    amount_gross: float  # amount + vat_amount
+    category: str  # VENDITE, ACQUISTI, AFFITTO, UTENZE, PERSONALE, FISCALE
+    related_document_id: Optional[int] = Field(default=None, foreign_key="archiveddocument.id")
+
+class PaymentDeadline(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    description: str
+    amount: float  # Total gross amount
+    due_date: datetime
+    status: str = Field(default="PENDING")  # PENDING, PAID
+    payment_date: Optional[datetime] = None
+    category: str = Field(default="UTENZE")  # AFFITTI, FISCALE, UTENZE, etc.
+

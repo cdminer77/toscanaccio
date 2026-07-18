@@ -177,6 +177,54 @@ def seed_db(session: Session):
             is_signature=False,
             is_vegan=False
         ),
+        MenuItem(
+            code="TOS-013",
+            name="Pasta Cup Berruto - Pomodoro",
+            description="Pasta istantanea in tazza Berruto. Pronta in 3 minuti aggiungendo acqua calda. Perfetta per uno spuntino rapido.",
+            price=2.5,
+            category=Category.SNACK,
+            food_cost_pct=0.20,
+            container_code="CUP",
+            channels='["walk-in", "vending"]',
+            availability_notes="Tutto l'anno",
+            note_ops="Prodotto secco in tazza. Richiede acqua calda.",
+            is_signature=False,
+            is_vegan=True,
+            requires_microwave=False,
+            requires_hot_water=True
+        ),
+        MenuItem(
+            code="SRV-001",
+            name="Erogazione Acqua Calda (Bicchiere Incluso)",
+            description="Servizio di erogazione acqua calda dalla macchina Bianchi Lei 900. Ideale per cup o infusi personali.",
+            price=0.10,
+            category=Category.SNACK,
+            food_cost_pct=0.01,
+            container_code="CUP",
+            channels='["vending"]',
+            availability_notes="Sempre attivo",
+            note_ops="Servizio di sblocco erogazione acqua calda.",
+            is_signature=False,
+            is_vegan=True,
+            requires_microwave=False,
+            requires_hot_water=True
+        ),
+        MenuItem(
+            code="SRV-002",
+            name="Utilizzo Microonde Professionale (Max 3 Min)",
+            description="Abilitazione all'uso del microonde per riscaldare i piatti pronti acquistati.",
+            price=0.20,
+            category=Category.GASTRONOMIA,
+            food_cost_pct=0.01,
+            container_code="NONE",
+            channels='["vending"]',
+            availability_notes="Sempre attivo",
+            note_ops="Servizio di sblocco presa elettrica e sportello microonde.",
+            is_signature=False,
+            is_vegan=True,
+            requires_microwave=True,
+            requires_hot_water=False
+        ),
     ]
     
     for item in items:
@@ -197,7 +245,7 @@ def seed_db(session: Session):
 
     # 3. Popola 100 Vending Slots per la distribuzione automatica SandenVendo H24
     # Filtriamo solo gli articoli adatti al vending
-    vending_items = [item for item in items if "vending" in item.channels or item.code in ["TOS-006", "TOS-008", "TOS-009", "TOS-010", "TOS-011", "TOS-012"]]
+    vending_items = [item for item in items if ("vending" in item.channels and not item.code.startswith("SRV-")) or item.code in ["TOS-006", "TOS-008", "TOS-009", "TOS-010", "TOS-011", "TOS-012", "TOS-013"]]
     if not vending_items:
         vending_items = items
 
@@ -295,6 +343,61 @@ def seed_db(session: Session):
         session.add(customer_user)
         session.commit()
         print("Utenti di test registrati (admin, claudio, mario)!")
+
+    # 6. Popola Scadenziario iniziale se vuoto
+    from .models import PaymentDeadline, AccountingEntry
+    if not session.exec(select(PaymentDeadline)).first():
+        from datetime import datetime, timedelta
+        deadlines = [
+            PaymentDeadline(
+                description="Affitto Locale Via Machiavelli 102 (Casalp)",
+                amount=220.00,
+                due_date=datetime.now() + timedelta(days=20),
+                status="PENDING",
+                category="AFFITTO"
+            ),
+            PaymentDeadline(
+                description="Bolletta Luce Enel Energia",
+                amount=145.30,
+                due_date=datetime.now() - timedelta(days=2),
+                status="PENDING",
+                category="UTENZE"
+            ),
+            PaymentDeadline(
+                description="Acquisto Materie Prime (Fornitore Ortofrutta Livorno)",
+                amount=350.00,
+                due_date=datetime.now() + timedelta(days=5),
+                status="PENDING",
+                category="INGREDIENTI"
+            ),
+            PaymentDeadline(
+                description="Tassa Rifiuti TARI Comune di Livorno",
+                amount=85.00,
+                due_date=datetime.now() - timedelta(days=15),
+                status="PAID",
+                payment_date=datetime.now() - timedelta(days=15),
+                category="FISCALE"
+            )
+        ]
+        for dl in deadlines:
+            session.add(dl)
+        session.commit()
+        print("Scadenziario iniziale popolato!")
+        
+        # Aggiungiamo anche la Tari pagata in contabilità per iniziare con un movimento di uscita
+        tari_dl = deadlines[3]
+        session.add(AccountingEntry(
+            description=f"Pagamento scadenza: {tari_dl.description}",
+            entry_type="USCITA",
+            amount=69.67,  # net of 22% vat (TARI is usually a tax but let's assume 22% or whatever for simulation)
+            vat_amount=15.33,
+            vat_rate=0.22,
+            amount_gross=85.00,
+            category="FISCALE",
+            date=tari_dl.payment_date
+        ))
+        session.commit()
+
 
 def random_initial_quantity(pos_code: str) -> int:
     if pos_code in ["A1", "A3", "F1", "G1", "H2"]:

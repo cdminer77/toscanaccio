@@ -4,8 +4,8 @@ from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import datetime, timedelta
 
-from .models import MenuItem, Order, OrderItem, Stock, VendingSlot, Rider, ProductRecognitionLog, OrderType, User, UserRole, NotificationLog
-from .schemas import OrderCreate, MenuItemCreate, ProductRecognitionCreate, UserCreate, StockUpdate, RiderUpdate, MenuItemUpdate, VendingSlotUpdate, UserUpdate, RiderCreate
+from .models import MenuItem, Order, OrderItem, Stock, VendingSlot, Rider, ProductRecognitionLog, OrderType, User, UserRole, NotificationLog, ArchivedDocument, AccountingEntry, PaymentDeadline, Category
+from .schemas import OrderCreate, MenuItemCreate, ProductRecognitionCreate, UserCreate, StockUpdate, RiderUpdate, MenuItemUpdate, VendingSlotUpdate, UserUpdate, RiderCreate, AccountingEntryCreate, PaymentDeadlineCreate, PaymentDeadlineUpdate
 
 # Configurazione crittografia password con hashlib (aggira bug bcrypt/passlib su Python 3.12+)
 import hashlib
@@ -209,9 +209,46 @@ def create_order(session: Session, order_data: OrderCreate) -> Order:
 
     # Il totale dell'ordine include anche il costo di consegna dinamico per la delivery
     order.total = round(total + delivery_fee, 2)
+    
+    # Gestione pagamento tramite Saldo Account (Cauzioni Pyrex accumulate)
+    if order.payment_method == "BALANCE":
+        user = session.exec(select(User).where(User.username == order.customer_name)).first()
+        if not user:
+            raise ValueError(f"Utente '{order.customer_name}' non trovato per il pagamento con saldo.")
+        if user.balance < order.total:
+            raise ValueError(f"Saldo insufficiente (€ {user.balance:.2f}) per coprire il totale di € {order.total:.2f}.")
+        user.balance = round(user.balance - order.total, 2)
+        order.payment_status = "PAID"
+        session.add(user)
+
     session.add(order)
     session.commit()
     session.refresh(order)
+
+    # --- TRIGGER HARDWARE SPORTELLI & AUTOMAZIONI ---
+    if order.order_type == OrderType.VENDING and order.payment_status == "PAID":
+        try:
+            from .hardware import hardware_manager
+            trigger_microwave = False
+            trigger_hot_water = False
+            
+            for item in order_data.items:
+                menu_item = session.get(MenuItem, item.menu_item_id)
+                if menu_item:
+                    if menu_item.code == "SRV-002" or getattr(menu_item, "requires_microwave", False):
+                        trigger_microwave = True
+                    if menu_item.code == "SRV-001" or getattr(menu_item, "requires_hot_water", False):
+                        trigger_hot_water = True
+            
+            if trigger_microwave:
+                hardware_manager.start_microwave_cycle(180)
+            if trigger_hot_water:
+                hardware_manager.open_door(2)
+                hardware_manager.trigger_hot_water_credit()
+        except Exception as hw_err:
+            # Non blocchiamo la transazione dell'ordine se c'è un errore software nel modulo hardware
+            import logging
+            logging.getLogger("toscanaccio.crud").error(f"Errore durante l'attivazione degli sportelli hardware: {hw_err}")
 
     # --- TRIGGER NOTIFICATIONS ON NEW ORDER ---
     method_labels = {
@@ -295,6 +332,55 @@ def update_order_status(session: Session, order_id: int, status: str, rider_id: 
                 message_content=msg,
                 event_type="DELIVERY_ASSIGNED"
             )
+            
+            # Auto-generazione del movimento contabile (ENTRATA)
+            try:
+                total_vat = 0.0
+                discount = 0.0
+                if order.order_type == OrderType.VENDING:
+                    if WEATHER_STATE == "RAINY":
+                        discount += 0.10
+                    elif WEATHER_STATE == "STORMY":
+                        discount += 0.20
+                    if SIMULATED_LATE_NIGHT:
+                        discount += 0.15
+                        
+                prev_vat = 0.10
+                for item in order.items:
+                    menu_item = session.get(MenuItem, item.menu_item_id)
+                    if menu_item:
+                        item_gross = round(menu_item.price * (1 - discount), 2) * item.quantity
+                        vat_rate = 0.22 if menu_item.category in [Category.BEVANDE, Category.SNACK] else 0.10
+                        item_net = round(item_gross / (1 + vat_rate), 2)
+                        item_vat = round(item_gross - item_net, 2)
+                        total_vat += item_vat
+                        if menu_item.category in [Category.BEVANDE, Category.SNACK]:
+                            prev_vat = 0.22
+                        
+                if order.delivery_fee and order.delivery_fee > 0:
+                    fee_gross = order.delivery_fee
+                    fee_net = round(fee_gross / 1.22, 2)
+                    fee_vat = round(fee_gross - fee_net, 2)
+                    total_vat += fee_vat
+                    
+                total_vat = round(total_vat, 2)
+                total_net = round(order.total - total_vat, 2)
+                
+                acc_entry = AccountingEntry(
+                    description=f"Incasso Ordine #{order.id} ({order.order_type.value}) - {order.customer_name}",
+                    entry_type="ENTRATA",
+                    amount=total_net,
+                    vat_amount=total_vat,
+                    vat_rate=prev_vat,
+                    amount_gross=order.total,
+                    category="VENDITE",
+                    date=datetime.utcnow()
+                )
+                session.add(acc_entry)
+                session.commit()
+            except Exception as e:
+                # Log or print error, don't crash status update
+                print(f"Errore auto-generazione contabilità ordine #{order.id}: {str(e)}")
             
     return order
 
@@ -500,3 +586,143 @@ def delete_rider(session: Session, rider_id: int) -> bool:
     session.delete(rider)
     session.commit()
     return True
+
+# --- ACCOUNTING, DEADLINES & DOCUMENT VAULT CRUD ---
+
+def get_vat_rate_for_category(category: str) -> float:
+    cat = category.upper()
+    if cat in ["AFFITTO", "AFFITTI"]:
+        return 0.0
+    elif cat in ["INGREDIENTI", "FOOD"]:
+        return 0.10
+    else:
+        return 0.22
+
+def create_accounting_entry(session: Session, entry_data: AccountingEntryCreate) -> AccountingEntry:
+    entry = AccountingEntry(**entry_data.model_dump())
+    session.add(entry)
+    session.commit()
+    session.refresh(entry)
+    return entry
+
+def get_accounting_entries(session: Session, category: Optional[str] = None, entry_type: Optional[str] = None) -> List[AccountingEntry]:
+    statement = select(AccountingEntry)
+    if category:
+        statement = statement.where(AccountingEntry.category == category.upper())
+    if entry_type:
+        statement = statement.where(AccountingEntry.entry_type == entry_type.upper())
+    statement = statement.order_by(AccountingEntry.date.desc())
+    return session.exec(statement).all()
+
+def create_payment_deadline(session: Session, deadline_data: PaymentDeadlineCreate) -> PaymentDeadline:
+    deadline = PaymentDeadline(
+        description=deadline_data.description,
+        amount=deadline_data.amount,
+        due_date=deadline_data.due_date,
+        status="PENDING",
+        category=deadline_data.category or "UTENZE"
+    )
+    session.add(deadline)
+    session.commit()
+    session.refresh(deadline)
+    return deadline
+
+def get_payment_deadlines(session: Session) -> List[PaymentDeadline]:
+    return session.exec(select(PaymentDeadline).order_by(PaymentDeadline.due_date.asc())).all()
+
+def update_payment_deadline(session: Session, deadline_id: int, deadline_update: PaymentDeadlineUpdate) -> Optional[PaymentDeadline]:
+    deadline = session.get(PaymentDeadline, deadline_id)
+    if not deadline:
+        return None
+        
+    old_status = deadline.status
+    update_data = deadline_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(deadline, key, value)
+        
+    session.add(deadline)
+    session.commit()
+    session.refresh(deadline)
+    
+    # Auto-generazione della spesa se lo stato diventa PAID
+    if old_status != "PAID" and deadline.status == "PAID":
+        vat_rate = get_vat_rate_for_category(deadline.category)
+        amount_gross = deadline.amount
+        amount_net = round(amount_gross / (1 + vat_rate), 2)
+        vat_amount = round(amount_gross - amount_net, 2)
+        
+        # Genera movimento in contabilità
+        acc_entry = AccountingEntry(
+            description=f"Pagamento scadenza: {deadline.description}",
+            entry_type="USCITA",
+            amount=amount_net,
+            vat_amount=vat_amount,
+            vat_rate=vat_rate,
+            amount_gross=amount_gross,
+            category=deadline.category.upper(),
+            date=deadline.payment_date or datetime.utcnow()
+        )
+        session.add(acc_entry)
+        session.commit()
+        
+    return deadline
+
+def create_archived_document(session: Session, filename: str, file_path: str, category: str, notes: Optional[str] = None) -> ArchivedDocument:
+    doc = ArchivedDocument(
+        filename=filename,
+        file_path=file_path,
+        category=category.upper(),
+        notes=notes
+    )
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+    return doc
+
+def get_archived_documents(session: Session) -> List[ArchivedDocument]:
+    return session.exec(select(ArchivedDocument).order_by(ArchivedDocument.uploaded_at.desc())).all()
+
+def delete_archived_document(session: Session, doc_id: int) -> bool:
+    doc = session.get(ArchivedDocument, doc_id)
+    if not doc:
+        return False
+    # Rimuove anche il riferimento nel libro giornale se presente
+    entries = session.exec(select(AccountingEntry).where(AccountingEntry.related_document_id == doc_id)).all()
+    for entry in entries:
+        entry.related_document_id = None
+        session.add(entry)
+        
+    session.delete(doc)
+    session.commit()
+    return True
+
+def process_pyrex_return(session: Session, username: str, nfc_tag_id: str) -> Optional[dict]:
+    """Elabora il reso di un contenitore Pyrex e accredita la cauzione sul saldo dell'utente"""
+    user = session.exec(select(User).where(User.username == username)).first()
+    if not user:
+        return None
+        
+    # Determina cauzione in base all'NFC (PYR-S o PYR-L)
+    deposit_value = 2.00  # Default per PYR-S (2.00 €)
+    size_label = "PYR-S (Monoporzione Vetro)"
+    
+    if "PYR-L" in nfc_tag_id or "L" in nfc_tag_id:
+        deposit_value = 3.00  # Per PYR-L (3.00 €)
+        size_label = "PYR-L (Vetro Grande)"
+        
+    # Calcola il nuovo saldo
+    user.balance = round(user.balance + deposit_value, 2)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    
+    return {
+        "status": "ACCEPTED",
+        "username": user.username,
+        "nfc_tag_id": nfc_tag_id,
+        "container_size": size_label,
+        "deposit_refunded": deposit_value,
+        "new_balance": user.balance
+    }
+
+

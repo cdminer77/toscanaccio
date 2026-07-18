@@ -15,6 +15,7 @@ class UserRead(BaseModel):
     username: str
     email: str
     role: UserRole
+    balance: float
     created_at: datetime
 
 class UserLogin(BaseModel):
@@ -43,6 +44,8 @@ class MenuItemRead(BaseModel):
     note_ops: Optional[str] = None
     is_signature: bool
     is_vegan: bool
+    requires_microwave: bool
+    requires_hot_water: bool
 
 class MenuItemCreate(BaseModel):
     name: str
@@ -60,6 +63,8 @@ class MenuItemCreate(BaseModel):
     note_ops: Optional[str] = None
     is_signature: Optional[bool] = False
     is_vegan: Optional[bool] = False
+    requires_microwave: Optional[bool] = False
+    requires_hot_water: Optional[bool] = False
 
 # OrderItem schemas
 class OrderItemCreate(BaseModel):
@@ -177,6 +182,8 @@ class MenuItemUpdate(BaseModel):
     note_ops: Optional[str] = None
     is_signature: Optional[bool] = None
     is_vegan: Optional[bool] = None
+    requires_microwave: Optional[bool] = None
+    requires_hot_water: Optional[bool] = None
 
 class VendingSlotUpdate(BaseModel):
     menu_item_id: Optional[int] = None
@@ -195,3 +202,57 @@ class RiderCreate(BaseModel):
     personal_data: Optional[str] = None
     financial_data: Optional[str] = None
     work_area: Optional[str] = None
+
+# ArchivedDocument schemas
+class ArchivedDocumentRead(BaseModel):
+    id: int
+    filename: str
+    file_path: str
+    category: str
+    notes: Optional[str] = None
+    uploaded_at: datetime
+
+# AccountingEntry schemas
+class AccountingEntryCreate(BaseModel):
+    description: str
+    entry_type: str
+    amount: float  # Net amount
+    vat_amount: float
+    vat_rate: float
+    amount_gross: float
+    category: str
+    related_document_id: Optional[int] = None
+    date: Optional[datetime] = None
+
+class AccountingEntryRead(BaseModel):
+    id: int
+    date: datetime
+    description: str
+    entry_type: str
+    amount: float
+    vat_amount: float
+    vat_rate: float
+    amount_gross: float
+    category: str
+    related_document_id: Optional[int] = None
+
+# PaymentDeadline schemas
+class PaymentDeadlineCreate(BaseModel):
+    description: str
+    amount: float
+    due_date: datetime
+    category: Optional[str] = "UTENZE"
+
+class PaymentDeadlineRead(BaseModel):
+    id: int
+    description: str
+    amount: float
+    due_date: datetime
+    status: str
+    payment_date: Optional[datetime] = None
+    category: str
+
+class PaymentDeadlineUpdate(BaseModel):
+    status: Optional[str] = None
+    payment_date: Optional[datetime] = None
+

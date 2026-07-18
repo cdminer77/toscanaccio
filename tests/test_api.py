@@ -313,3 +313,137 @@ def test_paypal_simulation_endpoints(client: TestClient):
     data = response.json()
     assert data["status"] == "APPROVED"
     assert "paypal_order_id" in data
+
+def test_hardware_doors_control_endpoints(client: TestClient):
+    """Verifica la lettura dello stato hardware e il controllo manuale degli sportelli."""
+    # Lettura stato iniziale
+    response = client.get("/admin/hardware/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "door_states" in data
+    assert data["door_states"]["1"] == "CLOSED"
+    assert data["connection_status"] in ["MOCKED", "CONNECTED", "DISCONNECTED"]
+
+    # Apertura sportello 1
+    response = client.post("/admin/hardware/door/1/open")
+    assert response.status_code == 200
+    assert response.json()["status"] == "SUCCESS"
+
+    # Verifica stato cambiato
+    response = client.get("/admin/hardware/status")
+    data = response.json()
+    assert data["door_states"]["1"] == "OPEN"
+
+    # Chiusura sportello 1
+    response = client.post("/admin/hardware/door/1/close")
+    assert response.status_code == 200
+
+    # Verifica stato richiuso
+    response = client.get("/admin/hardware/status")
+    data = response.json()
+    assert data["door_states"]["1"] == "CLOSED"
+
+    # Test ID porta non valido
+    response = client.post("/admin/hardware/door/4/open")
+    assert response.status_code == 400
+
+    # Reset
+    response = client.post("/admin/hardware/reset")
+    assert response.status_code == 200
+
+def test_pyrex_return_credit_logic(client: TestClient, session: Session):
+    """Verifica il reso di un Pyrex vuoto con accredito sul bilancio dell'utente."""
+    # Registra un utente di test
+    user_payload = {
+        "username": "tester_pyrex",
+        "email": "tester_pyrex@toscanaccio.it",
+        "password": "testpassword"
+    }
+    client.post("/auth/register", json=user_payload)
+
+    # Verifica bilancio iniziale = 0
+    from app.models import User
+    user = session.exec(select(User).where(User.username == "tester_pyrex")).first()
+    assert user.balance == 0.0
+
+    # Esegui reso di un contenitore piccolo (PYR-S) -> dovrebbe accreditare 2.00 €
+    return_payload = {
+        "username": "tester_pyrex",
+        "nfc_tag_id": "NFC-TAG-PYR-S-102"
+    }
+    response = client.post("/vending/returns", json=return_payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ACCEPTED"
+    assert data["deposit_refunded"] == 2.00
+    assert data["new_balance"] == 2.00
+
+    # Esegui reso di un contenitore grande (PYR-L) -> dovrebbe accreditare altri 3.00 € (totale 5.00 €)
+    return_payload_l = {
+        "username": "tester_pyrex",
+        "nfc_tag_id": "NFC-TAG-PYR-L-304"
+    }
+    response = client.post("/vending/returns", json=return_payload_l)
+    assert response.status_code == 200
+    assert response.json()["new_balance"] == 5.00
+
+def test_create_order_payment_with_balance(client: TestClient, session: Session):
+    """Verifica l'acquisto pagando tramite il saldo dell'account utente (BALANCE)."""
+    # Registra utente
+    user_payload = {
+        "username": "tester_balance",
+        "email": "tester_balance@toscanaccio.it",
+        "password": "testpassword"
+    }
+    client.post("/auth/register", json=user_payload)
+
+    # Inietta saldo tramite reso Pyrex grande
+    return_payload = {
+        "username": "tester_balance",
+        "nfc_tag_id": "NFC-TAG-PYR-L-999"
+    }
+    client.post("/vending/returns", json=return_payload) # Balance = 3.00 €
+
+    # Aggiungi un prodotto economico nel menu
+    from app.models import MenuItem
+    item = MenuItem(
+        code="TEST-001",
+        name="Panino economico",
+        price=2.00,
+        category="Street food / territorio"
+    )
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+
+    # Esegui ordine pagando con BALANCE (costo base €2.00)
+    order_payload = {
+        "order_type": "VENDING",
+        "customer_name": "tester_balance",
+        "payment_method": "BALANCE",
+        "payment_status": "PAID",
+        "items": [{"menu_item_id": item.id, "quantity": 1}]
+      }
+    response = client.post("/orders", json=order_payload)
+    assert response.status_code == 201
+    order_data = response.json()
+    order_total = order_data["total"]
+    
+    # Verifica che il saldo utente sia sceso correttamente di order_total
+    from app.models import User
+    session.expire_all() # rinfresca la sessione per leggere i valori aggiornati del db
+    user = session.exec(select(User).where(User.username == "tester_balance")).first()
+    assert user.balance == round(3.00 - order_total, 2)
+
+    # Prova a fare un altro ordine molto più costoso (quantità 10) -> dovrebbe fallire per saldo insufficiente
+    order_payload_fail = {
+        "order_type": "VENDING",
+        "customer_name": "tester_balance",
+        "payment_method": "BALANCE",
+        "payment_status": "PAID",
+        "items": [{"menu_item_id": item.id, "quantity": 10}]
+      }
+    response_fail = client.post("/orders", json=order_payload_fail)
+    assert response_fail.status_code == 400
+    assert "Saldo insufficiente" in response_fail.json()["detail"]
+

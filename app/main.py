@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
+import os
+import shutil
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
@@ -685,4 +687,168 @@ def delete_rider(rider_id: int, session: Session = Depends(get_session)):
     if not success:
         raise HTTPException(status_code=404, detail="Rider non trovato")
     return {"status": "DELETED", "message": f"Rider {rider_id} rimosso con successo."}
+
+# --- ACCOUNTING, DEADLINES & DOCUMENT VAULT API ---
+
+@app.get("/admin/accounting", response_model=List[schemas.AccountingEntryRead])
+def get_accounting_entries(
+    category: Optional[str] = None,
+    entry_type: Optional[str] = None,
+    session: Session = Depends(get_session)
+):
+    return crud.get_accounting_entries(session, category, entry_type)
+
+@app.post("/admin/accounting", response_model=schemas.AccountingEntryRead, status_code=201)
+def create_accounting_entry(
+    entry_data: schemas.AccountingEntryCreate,
+    session: Session = Depends(get_session)
+):
+    try:
+        return crud.create_accounting_entry(session, entry_data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/admin/deadlines", response_model=List[schemas.PaymentDeadlineRead])
+def get_payment_deadlines(session: Session = Depends(get_session)):
+    return crud.get_payment_deadlines(session)
+
+@app.post("/admin/deadlines", response_model=schemas.PaymentDeadlineRead, status_code=201)
+def create_payment_deadline(
+    deadline_data: schemas.PaymentDeadlineCreate,
+    session: Session = Depends(get_session)
+):
+    try:
+        return crud.create_payment_deadline(session, deadline_data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.patch("/admin/deadlines/{deadline_id}", response_model=schemas.PaymentDeadlineRead)
+def update_payment_deadline(
+    deadline_id: int,
+    deadline_data: schemas.PaymentDeadlineUpdate,
+    session: Session = Depends(get_session)
+):
+    updated = crud.update_payment_deadline(session, deadline_id, deadline_data)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Scadenza non trovata")
+    return updated
+
+@app.get("/admin/documents", response_model=List[schemas.ArchivedDocumentRead])
+def get_archived_documents(session: Session = Depends(get_session)):
+    return crud.get_archived_documents(session)
+
+@app.post("/admin/documents/upload", response_model=schemas.ArchivedDocumentRead, status_code=201)
+def upload_document(
+    category: str,
+    notes: Optional[str] = None,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session)
+):
+    upload_dir = os.path.join("files", "archive")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Generate a safe, unique filename
+    base_name, ext = os.path.splitext(file.filename)
+    safe_base = "".join([c if c.isalnum() or c in ".-_" else "_" for c in base_name])
+    safe_filename = f"{safe_base}{ext}"
+    file_path = os.path.join(upload_dir, safe_filename)
+    
+    # Counter if file already exists
+    counter = 1
+    while os.path.exists(file_path):
+        file_path = os.path.join(upload_dir, f"{safe_base}_{counter}{ext}")
+        safe_filename = f"{safe_base}_{counter}{ext}"
+        counter += 1
+        
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore salvataggio file: {str(e)}")
+        
+    web_file_path = file_path.replace("\\", "/")
+    doc = crud.create_archived_document(session, safe_filename, web_file_path, category, notes)
+    return doc
+
+@app.delete("/admin/documents/{doc_id}")
+def delete_document(doc_id: int, session: Session = Depends(get_session)):
+    doc = session.get(crud.ArchivedDocument, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+        
+    if os.path.exists(doc.file_path):
+        try:
+            os.remove(doc.file_path)
+        except Exception as e:
+            print(f"Errore rimozione file fisico {doc.file_path}: {str(e)}")
+            
+    success = crud.delete_archived_document(session, doc_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    return {"status": "DELETED", "message": "Documento eliminato con successo."}
+
+# --- AUTOMATED DOORS & HARDWARE API ---
+
+@app.get("/admin/hardware/status")
+def get_hardware_status():
+    """Restituisce lo stato attuale di tutti e 3 gli sportelli e il modulo seriale"""
+    from app.hardware import hardware_manager
+    return {
+        "connection_status": hardware_manager.connection_status,
+        "com_port": hardware_manager.com_port,
+        "door_states": hardware_manager.door_states,
+        "microwave_relay": hardware_manager.microwave_relay,
+        "microwave_time_left": hardware_manager.microwave_time_left
+    }
+
+@app.post("/admin/hardware/door/{door_id}/open")
+def open_hardware_door(door_id: int):
+    """Forza l'apertura remota dello sportello selezionato"""
+    from app.hardware import hardware_manager
+    if door_id not in [1, 2, 3]:
+        raise HTTPException(status_code=400, detail="ID sportello non valido. Scegli 1, 2 o 3.")
+    hardware_manager.open_door(door_id)
+    return {"status": "SUCCESS", "message": f"Inviato comando di sblocco per lo sportello {door_id}"}
+
+@app.post("/admin/hardware/door/{door_id}/close")
+def close_hardware_door(door_id: int):
+    """Forza la chiusura ed il blocco dello sportello selezionato"""
+    from app.hardware import hardware_manager
+    if door_id not in [1, 2, 3]:
+        raise HTTPException(status_code=400, detail="ID sportello non valido. Scegli 1, 2 o 3.")
+    hardware_manager.close_door(door_id)
+    return {"status": "SUCCESS", "message": f"Inviato comando di chiusura per lo sportello {door_id}"}
+
+@app.post("/admin/hardware/reset")
+def reset_hardware_connection():
+    """Ripristina la connessione seriale ad Arduino e azzera gli stati"""
+    from app.hardware import hardware_manager
+    hardware_manager.reset_connection()
+    return {"status": "SUCCESS", "message": "Connessione Arduino ripristinata con successo."}
+
+@app.post("/vending/returns")
+def process_pyrex_return_endpoint(payload: dict, session: Session = Depends(get_session)):
+    """Gestisce il reso di un contenitore Pyrex (scansione NFC e accredito cauzione)"""
+    username = payload.get("username")
+    nfc_tag_id = payload.get("nfc_tag_id")
+    if not username or not nfc_tag_id:
+        raise HTTPException(status_code=400, detail="Username e nfc_tag_id sono richiesti.")
+        
+    from app.hardware import hardware_manager
+    # Apriamo lo sportello resi (Sportello 3)
+    hardware_manager.open_door(3)
+    
+    result = crud.process_pyrex_return(session, username, nfc_tag_id)
+    if not result:
+        # Se l'utente non esiste, chiudiamo subito lo sportello
+        hardware_manager.close_door(3)
+        raise HTTPException(status_code=404, detail=f"Utente '{username}' non trovato.")
+        
+    # Avvia la chiusura automatica dopo 10 secondi dall'accettazione
+    import threading
+    threading.Timer(10.0, lambda: hardware_manager.close_door(3)).start()
+    
+    return result
+
+
 

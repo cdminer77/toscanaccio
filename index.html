@@ -1708,17 +1708,13 @@
       <nav id="main-navigation">
         <button class="nav-btn active" onclick="switchTab('clienti')">🛒 Clienti</button>
         <button class="nav-btn" onclick="switchTab('rider')">🛵 Rider</button>
-        <button class="nav-btn" onclick="switchTab('gestione')">📊 Gestione</button>
-        <button class="nav-btn" onclick="switchTab('vision')">👁 Vision I.A.</button>
       </nav>
 
       <!-- Actions (Mode Switch & Auth) -->
       <div class="header-actions">
-        <!-- Switch Kiosk Mode in Negozio -->
-        <div class="switch-mode-container">
-          <button id="mode-store-btn" class="switch-mode-btn active" onclick="setKioskMode(false)">Web App</button>
-          <button id="mode-kiosk-btn" class="switch-mode-btn" onclick="setKioskMode(true)">🖥️ Kiosk H24</button>
-        </div>
+        <!-- Direct Links to standalone portals -->
+        <button class="nav-btn" onclick="window.location.href='/kiosk.html'" style="background:var(--olive); color:#fff; border-color:var(--olive)">🖥️ Kiosk H24</button>
+        <button class="nav-btn" onclick="window.location.href='/admin.html'" style="background:var(--terracotta); color:#fff; border-color:var(--terracotta)">📊 Amministrazione</button>
 
         <!-- Auth Status -->
         <div id="auth-badge" class="auth-badge" onclick="openAuthModal()">
@@ -1824,7 +1820,7 @@
         <div>
           <div class="cart-panel">
             <h3 class="cart-title">
-              Il Tuo Tagliere
+              Il Tuo Cestino della Spesa
               <span id="cart-count" class="cart-count">0</span>
             </h3>
             
@@ -1852,23 +1848,7 @@
             </button>
           </div>
 
-          <!-- Documenti Ufficiali -->
-          <div class="download-panel" style="margin-top: 20px; background: rgba(90, 123, 64, 0.03); border: 1px solid var(--border); border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
-            <h4 style="font-family: var(--display); font-size: 1.1rem; margin-bottom: 12px; color: #fff; display: flex; align-items: center; gap: 8px;">
-              📁 Documentazione Ufficiale
-            </h4>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-              <a href="/files/toscanaccio_listino.pdf" target="_blank" class="btn-add" style="justify-content: center; text-align: center; font-size: 0.8rem; padding: 10px; background: rgba(186, 92, 51, 0.08); border-color: rgba(186, 92, 51, 0.25); color: var(--terracotta-light); font-weight: 700;">
-                📄 Listino Prezzi (PDF)
-              </a>
-              <a href="/files/toscanaccio_schede_tecniche.pdf" target="_blank" class="btn-add" style="justify-content: center; text-align: center; font-size: 0.8rem; padding: 10px; background: rgba(90, 123, 64, 0.08); border-color: rgba(90, 123, 64, 0.25); color: var(--olive-light); font-weight: 700;">
-                🔬 Schede Tecniche (PDF)
-              </a>
-              <a href="/files/toscanaccio_listino.xlsx" download class="btn-add" style="justify-content: center; text-align: center; font-size: 0.8rem; padding: 10px; background: rgba(249, 166, 2, 0.08); border-color: rgba(249, 166, 2, 0.25); color: var(--gold); font-weight: 700;">
-                📊 Matrice Dati (Excel)
-              </a>
-            </div>
-          </div>
+
         </div>
 
       </div>

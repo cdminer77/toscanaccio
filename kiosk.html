@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toscanaccio — Touchscreen Kiosk H24</title>
+  
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet & Teachable Machine are not needed here since we are only Vending kiosk -->
+  
+  <style>
+    :root {
+      --terracotta: #BA5C33;
+      --terracotta-dark: #914322;
+      --terracotta-light: #df7e54;
+      --ardesia: #212226;
+      --ardesia-dark: #121316;
+      --ardesia-light: #1c1d21;
+      --card-bg: #2d2e33;
+      --gold: #F9A602;
+      --olive: #5A7B40;
+      --olive-light: #7da061;
+      
+      --text: #f0f6fc;
+      --text-muted: #8b949e;
+      --success: #43a047;
+      --danger: #e53935;
+      --warning: #fb8c00;
+      
+      --sans: 'Inter', sans-serif;
+      --display: 'Outfit', sans-serif;
+      --glass: rgba(18, 19, 22, 0.95);
+      --border: rgba(90, 123, 64, 0.2);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      background: #0d0e11;
+      background-image: 
+        radial-gradient(at 10% 10%, rgba(186, 92, 51, 0.06) 0px, transparent 50%),
+        radial-gradient(at 90% 90%, rgba(90, 123, 64, 0.05) 0px, transparent 50%);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      user-select: none; /* Prevents text selection on touchscreen */
+    }
+
+    header {
+      background: var(--glass);
+      border-bottom: 2px solid var(--border);
+      padding: 18px 0;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--olive) 0%, var(--olive-light) 100%);
+      color: #fff;
+      font-family: var(--display);
+      font-weight: 800;
+      font-size: 1.6rem;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(90, 123, 64, 0.3);
+    }
+
+    .logo-text {
+      font-family: var(--display);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .logo-text span {
+      font-weight: 300;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      display: block;
+      margin-top: -3px;
+    }
+
+    .kiosk-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(63, 185, 80, 0.1);
+      border: 1px solid rgba(63, 185, 80, 0.25);
+      color: var(--success);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    main {
+      flex: 1;
+      padding: 24px 0;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 24px;
+    }
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .kiosk-cabinets-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .kiosk-cabinets-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .vending-machine-cabinet {
+      background: linear-gradient(180deg, #1f232b 0%, #111317 100%);
+      border: 4px solid #30363d;
+      border-radius: 24px;
+      padding: 16px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+      position: relative;
+    }
+
+    .vending-machine-cabinet::after {
+      content: '';
+      position: absolute;
+      bottom: -15px;
+      left: 10%;
+      right: 10%;
+      height: 15px;
+      background: #07090d;
+      border-radius: 0 0 10px 10px;
+    }
+
+    .vendo-header-tag {
+      font-family: var(--display);
+      font-weight: 800;
+      color: var(--gold);
+      text-transform: uppercase;
+      font-size: 0.95rem;
+      letter-spacing: 1px;
+      text-align: center;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px dashed rgba(240, 246, 252, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .vendo-glass-shelf {
+      background: rgba(255,255,255,0.02);
+      border-radius: 12px;
+      padding: 8px;
+      margin-bottom: 12px;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);
+      border-bottom: 3px solid rgba(255,255,255,0.1);
+    }
+
+    .shelf-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      padding: 0 4px 4px;
+      font-weight: 700;
+    }
+
+    .shelf-slots-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+
+    .shelf-slot {
+      background: #21262d;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 4px;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 95px;
+    }
+
+    .shelf-slot:hover {
+      background: rgba(201, 111, 67, 0.15);
+      border-color: var(--terracotta);
+      transform: translateY(-2px);
+    }
+
+    .shelf-slot.low-stock {
+      border-color: var(--warning);
+    }
+
+    .shelf-slot.out-of-stock {
+      background: #161b22;
+      border-color: var(--danger);
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .shelf-slot.maintenance {
+      background: rgba(248, 81, 73, 0.05);
+      border-color: var(--danger);
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .slot-position-badge {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--gold);
+      background: rgba(0,0,0,0.4);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    .slot-item-emoji {
+      font-size: 1.5rem;
+      margin: 6px 0 2px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    .slot-item-name-micro {
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .slot-price-micro {
+      font-size: 0.72rem;
+      font-family: var(--display);
+      font-weight: 700;
+      color: var(--terracotta-light);
+      margin-top: 2px;
+    }
+
+    .slot-qty-dot {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 4px;
+      padding: 1px 2px;
+      display: inline-block;
+    }
+
+    /* Kiosk Cart Sidebar */
+    .kiosk-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .cart-panel {
+      background: var(--ardesia-light);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      max-height: 480px;
+    }
+
+    .cart-title {
+      font-family: var(--display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #fff;
+    }
+
+    .cart-count {
+      background: var(--terracotta);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 12px;
+    }
+
+    .cart-items {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .cart-empty {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 40px 0;
+    }
+
+    .cart-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .cart-item-name {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .cart-item-slot {
+      font-size: 0.65rem;
+      color: var(--gold);
+      margin-top: 2px;
+    }
+
+    .cart-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-qty {
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+    }
+
+    .btn-qty:hover {
+      background: var(--terracotta);
+    }
+
+    .cart-summary {
+      border-top: 1px solid rgba(255,255,255,0.05);
+      padding-top: 14px;
+      margin-bottom: 16px;
+    }
+
+    .cart-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .cart-row.total {
+      font-family: var(--display);
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #fff;
+      margin-top: 8px;
+      border-top: 1px dashed rgba(255,255,255,0.05);
+      padding-top: 8px;
+    }
+
+    .btn-checkout {
+      width: 100%;
+      background: var(--gold);
+      color: #0d0e11;
+      border: none;
+      padding: 16px;
+      border-radius: 12px;
+      font-family: var(--display);
+      font-size: 1.1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 15px rgba(249, 166, 2, 0.25);
+    }
+
+    .btn-checkout:disabled {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-muted);
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* Promos Box */
+    .promo-banner {
+      background: rgba(249, 166, 2, 0.08);
+      border: 1px solid rgba(249, 166, 2, 0.25);
+      color: var(--gold);
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Kiosk telemetry logger */
+    .telemetry-logger {
+      background: #000;
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    .telemetry-title {
+      font-family: monospace;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--olive-light);
+      margin-bottom: 10px;
+      border-bottom: 1px solid rgba(90, 123, 64, 0.2);
+      padding-bottom: 6px;
+    }
+
+    .telemetry-console {
+      font-family: monospace;
+      font-size: 0.72rem;
+      color: var(--olive-light);
+      overflow-y: auto;
+      max-height: 250px;
+      flex: 1;
+    }
+
+    .telemetry-console div {
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+
+    /* Modal Checkout Overlay */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      backdrop-filter: blur(8px);
+    }
+
+    .modal-content {
+      background: var(--ardesia-light);
+      border: 2px solid var(--border);
+      border-radius: 24px;
+      width: 90%;
+      max-width: 650px;
+      padding: 30px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      animation: modalFade 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes modalFade {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding-bottom: 14px;
+    }
+
+    .modal-title {
+      font-family: var(--display);
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .btn-close-modal {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+
+    .payment-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 500px) {
+      .payment-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .payment-method-btn {
+      background: rgba(0,0,0,0.2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: 0.9rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .payment-method-btn.active {
+      border-color: var(--gold);
+      color: #fff;
+      background: rgba(249, 166, 2, 0.05);
+    }
+
+    .payment-icon {
+      font-size: 1.8rem;
+    }
+
+    /* Cash payment emulator grid */
+    .cash-insert-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn-cash-coin {
+      background: var(--ardesia);
+      border: 1px solid var(--border);
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .btn-cash-coin:hover {
+      background: var(--terracotta);
+      border-color: var(--terracotta);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="container header-content">
+      <div class="logo-container">
+        <div class="logo-badge">🐗</div>
+        <div class="logo-text">
+          Toscanaccio
+          <span>Touchscreen Kiosk H24</span>
+        </div>
+      </div>
+      
+      <div class="kiosk-status">
+        <span style="display:inline-block; width:8px; height:8px; background:currentColor; border-radius:50%"></span>
+        <span>MODO KIOSK OPERATIVO</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    
+    <!-- Cabinets grid -->
+    <div class="kiosk-cabinets-container">
+      <!-- SandenVendo G-Drink 1 -->
+      <div class="vending-machine-cabinet">
+        <div class="vendo-header-tag">
+          <span>🥤 SandenVendo G-Drink 1</span>
+          <span style="font-size:0.75rem; color:var(--success)" id="temp-machine-1">4.2°C</span>
+        </div>
+        <div id="kiosk-cabinet-1">
+          <!-- Populated dynamically (shelves A, B, C, D, E) -->
+        </div>
+      </div>
+
+      <!-- SandenVendo G-Drink 2 -->
+      <div class="vending-machine-cabinet">
+        <div class="vendo-header-tag">
+          <span>🍷 SandenVendo G-Drink 2</span>
+          <span style="font-size:0.75rem; color:var(--gold)" id="temp-machine-2">11.5°C</span>
+        </div>
+        <div id="kiosk-cabinet-2">
+          <!-- Populated dynamically (shelves F, G, H, I, J) -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar cart & telemetry logs -->
+    <div class="kiosk-sidebar">
+      
+      <!-- Promos Active Banner -->
+      <div class="promo-banner" id="kiosk-promo-banner" style="display:none">
+        <span style="font-size:1.5rem">☔</span>
+        <div>
+          <div style="font-weight:700" id="kiosk-promo-title">Sconto Maltempo</div>
+          <div style="font-size:0.75rem; color:var(--text-muted)" id="kiosk-promo-desc">Sconto applicato a tutti i piatti.</div>
+        </div>
+      </div>
+
+      <!-- Kiosk local cart panel -->
+      <div class="cart-panel">
+        <h3 class="cart-title">
+          Carrello Kiosk
+          <span id="kiosk-cart-count" class="cart-count">0</span>
+        </h3>
+        
+        <div id="kiosk-cart-items" class="cart-items">
+          <div class="cart-empty">Tocca uno slot del distributore per selezionare!</div>
+        </div>
+        
+        <div id="kiosk-upsell-suggestions" style="margin: 10px 0; display: flex; flex-direction: column; gap: 8px"></div>
+
+        <div class="cart-summary">
+          <div class="cart-row">
+            <span>Subtotale Lordo</span>
+            <span id="kiosk-cart-subtotal">€ 0.00</span>
+          </div>
+          <div class="cart-row" id="kiosk-discount-row" style="display:none; color:var(--gold)">
+            <span id="kiosk-discount-lbl">Sconto</span>
+            <span id="kiosk-discount-val">€ 0.00</span>
+          </div>
+          <div class="cart-row total">
+            <span>Totale da Pagare</span>
+            <span id="kiosk-cart-total">€ 0.00</span>
+          </div>
+        </div>
+
+        <button id="btn-kiosk-checkout" class="btn-checkout" onclick="openKioskCheckout()" disabled>
+          💵 Paga Ora
+        </button>
+      </div>
+
+      <!-- Live telemetry logs console -->
+      <div class="telemetry-logger">
+        <div class="telemetry-title">⚡ MDB Bus &amp; Telemetria H24 Console</div>
+        <div class="telemetry-console" id="kiosk-telemetry-console">
+          <div>[SYSTEM] Kiosk channel listener active.</div>
+          <div>[SYSTEM] MDB controller initialized (RS232 adapter connected).</div>
+          <div>[SYSTEM] MEI Cashflow changer status: OPERATIONAL (tubes OK).</div>
+          <div>[SYSTEM] SandenVendo vending cabinet online.</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Checkout modal overlay -->
+  <div id="kiosk-checkout-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 class="modal-title">💳 Seleziona Metodo di Pagamento</h4>
+        <button class="btn-close-modal" onclick="closeKioskCheckout()">&times;</button>
+      </div>
+
+      <div class="payment-grid">
+        <button class="payment-method-btn active" id="btn-pay-cash" onclick="setKioskPaymentMethod('CASH')">
+          <span class="payment-icon">🪙</span>
+          <span>Contanti / Gettoniera</span>
+        </button>
+        <button class="payment-method-btn" id="btn-pay-pos" onclick="setKioskPaymentMethod('POS')">
+          <span class="payment-icon">💳</span>
+          <span>POS Carta / NFC</span>
+        </button>
+        <button class="payment-method-btn" id="btn-pay-satispay" onclick="setKioskPaymentMethod('SATISPAY')">
+          <span class="payment-icon">📱</span>
+          <span>Satispay Mobile</span>
+        </button>
+        <button class="payment-method-btn" id="btn-pay-crypto" onclick="setKioskPaymentMethod('CRYPTO_EURT')">
+          <span class="payment-icon">🌐</span>
+          <span>EURT Polygon Stablecoin</span>
+        </button>
+      </div>
+
+      <!-- Contanti view -->
+      <div id="checkout-view-cash" style="background:rgba(0,0,0,0.15); padding:16px; border-radius:12px; border:1px solid var(--border)">
+        <div style="font-weight:700; color:#fff">Inserimento Monete/Banconote MDB:</div>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px">Tocca le monete per simularne l'inserimento fisico nella gettoniera MEI Cashflow.</p>
+        
+        <div class="cash-insert-grid">
+          <button class="btn-cash-coin" onclick="insertKioskCash(0.10)">🪙 0.10 EUR</button>
+          <button class="btn-cash-coin" onclick="insertKioskCash(0.20)">🪙 0.20 EUR</button>
+          <button class="btn-cash-coin" onclick="insertKioskCash(0.50)">🪙 0.50 EUR</button>
+          <button class="btn-cash-coin" onclick="insertKioskCash(1.00)">🪙 1.00 EUR</button>
+          <button class="btn-cash-coin" onclick="insertKioskCash(2.00)">🪙 2.00 EUR</button>
+          <button class="btn-cash-coin" onclick="insertKioskCash(5.00)">💵 5.00 EUR</button>
+          <button class="btn-cash-coin" onclick="insertKioskCash(10.00)">💵 10.00 EUR</button>
+          <button class="btn-cash-coin" onclick="insertKioskCash(20.00)">💵 20.00 EUR</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; border-top:1px dashed rgba(255,255,255,0.05); padding-top:12px">
+          <div>
+            <div style="font-size:0.8rem; color:var(--text-muted)">Inserito:</div>
+            <strong id="kiosk-cash-inserted" style="font-size:1.2rem; color:var(--gold)">€ 0.00</strong>
+          </div>
+          <div>
+            <div style="font-size:0.8rem; color:var(--text-muted)">Resto Dovuto:</div>
+            <strong id="kiosk-cash-change" style="font-size:1.2rem; color:var(--success)">€ 0.00</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- POS card tap view -->
+      <div id="checkout-view-pos" style="display:none; text-align:center; padding:20px; background:rgba(0,0,0,0.15); border-radius:12px; border:1px solid var(--border)">
+        <span style="font-size:3rem">📟</span>
+        <div style="font-weight:700; color:#fff; margin-top:10px">Terminale POS Ingenico MDB</div>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px">Avvicina la carta di credito contactless o lo smartphone per completare l'addebito ISO 8583.</p>
+        <button class="btn-add" style="margin-top:14px; padding:10px 20px" onclick="simulateKioskPosTap()">Simula Tap Contactless</button>
+      </div>
+
+      <!-- Satispay view -->
+      <div id="checkout-view-satispay" style="display:none; text-align:center; padding:20px; background:rgba(0,0,0,0.15); border-radius:12px; border:1px solid var(--border)">
+        <span style="font-size:3rem">📱</span>
+        <div style="font-weight:700; color:#fff; margin-top:10px">Satispay Smart Kiosk Pay</div>
+        <div class="form-group" style="max-width:300px; margin:14px auto 0 auto">
+          <label>Numero di cellulare Satispay:</label>
+          <input type="text" id="satispay-kiosk-phone" class="form-control" placeholder="es: +39 333 1234567" value="+39 333 1234567">
+        </div>
+        <button class="btn-add" style="margin-top:10px; padding:8px 16px" onclick="requestKioskSatispay()">Invia Richiesta Push</button>
+        <div id="satispay-loading-bar" style="display:none; color:var(--gold); font-size:0.75rem; margin-top:8px">In attesa di approvazione sullo smartphone...</div>
+      </div>
+
+      <!-- Crypto view -->
+      <div id="checkout-view-crypto" style="display:none; text-align:center; padding:20px; background:rgba(0,0,0,0.15); border-radius:12px; border:1px solid var(--border)">
+        <span style="font-size:3rem">🌐</span>
+        <div style="font-weight:700; color:#fff; margin-top:10px">EURT Stablecoin (Polygon Mainnet)</div>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px">Scansiona il QR Code col tuo wallet EVM o simula l'invio della transazione blockchain.</p>
+        <div id="crypto-kiosk-invoice-info" style="font-size:0.75rem; color:var(--success); margin:12px 0; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px">
+          Importo: <strong id="crypto-gross-amt">0.00 EURT</strong>
+        </div>
+        <button class="btn-add" style="padding:8px 16px" onclick="simulateKioskCryptoTx()">Verifica Transazione Blockchain</button>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; border-top:1px solid rgba(255,255,255,0.05); padding-top:14px">
+        <div>
+          <span style="font-size:0.8rem; color:var(--text-muted)">Totale Cassa:</span>
+          <div id="modal-checkout-total" style="font-size:1.4rem; font-weight:800; font-family:var(--display)">€ 0.00</div>
+        </div>
+        <button id="btn-kiosk-confirm-checkout" class="btn-checkout" style="max-width:200px; background:var(--success); color:#fff; box-shadow:none" onclick="submitKioskOrder()" disabled>
+          Conferma Acquisto
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:")
+      ? "http://localhost:8000"
+      : window.location.origin;
+
+    let kioskCart = [];
+    let vendingSlots = [];
+    let menuItems = [];
+    let weatherState = "SUNNY";
+    let lateNight = false;
+    let discountRate = 0.0;
+    
+    let selectedPaymentMethod = "CASH";
+    let insertedCash = 0.0;
+
+    window.onload = function() {
+      fetchMenu();
+      fetchVendingSlots();
+      fetchPromos();
+    };
+
+    function logTelemetry(msg, level = "INFO") {
+      const consoleEl = document.getElementById("kiosk-telemetry-console");
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement("div");
+      div.innerHTML = `<span style="color:var(--text-muted)">[${time}]</span> <span style="color:var(--gold)">[${level}]</span> ${msg}`;
+      consoleEl.appendChild(div);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    async function fetchMenu() {
+      try {
+        const res = await fetch(`${API_BASE}/menu`);
+        menuItems = await res.json();
+      } catch (err) {
+        logTelemetry("Errore fetch menu dal server!", "ERROR");
+      }
+    }
+
+    async function fetchVendingSlots() {
+      try {
+        const res = await fetch(`${API_BASE}/vending`);
+        vendingSlots = await res.json();
+        renderKioskCabinet();
+      } catch (err) {
+        logTelemetry("Errore fetch slots vending!", "ERROR");
+      }
+    }
+
+    async function fetchPromos() {
+      try {
+        const res = await fetch(`${API_BASE}/vending/promos`);
+        const data = await res.json();
+        weatherState = data.weather;
+        lateNight = data.simulated_late_night;
+        
+        let disc = 0.0;
+        let pTitle = "";
+        let pDesc = "";
+        let pIcon = "☔";
+        
+        if (data.promos && data.promos.length > 0) {
+          // Seleziona la promo più forte
+          disc = Math.max(...data.promos.map(p => p.discount));
+          const mainPromo = data.promos.find(p => p.discount === disc);
+          pTitle = mainPromo.name;
+          pDesc = mainPromo.description;
+          
+          if (pTitle.includes("Pioggia")) pIcon = "☔";
+          else if (pTitle.includes("Tempesta")) pIcon = "⚡";
+          else if (pTitle.includes("Notturno")) pIcon = "🌙";
+          
+          document.getElementById("kiosk-promo-title").innerText = pTitle;
+          document.getElementById("kiosk-promo-desc").innerText = pDesc;
+          document.getElementById("kiosk-promo-banner").style.display = "flex";
+        } else {
+          document.getElementById("kiosk-promo-banner").style.display = "none";
+        }
+        
+        discountRate = disc;
+        updateKioskCartUI();
+      } catch (err) {
+        console.error("Errore fetch promos:", err);
+      }
+    }
+
+    // Drawing cabinets A-E & F-J
+    function renderKioskCabinet() {
+      const cab1 = document.getElementById("kiosk-cabinet-1");
+      const cab2 = document.getElementById("kiosk-cabinet-2");
+      cab1.innerHTML = "";
+      cab2.innerHTML = "";
+
+      const shelves1 = ["A", "B", "C", "D", "E"];
+      const shelves2 = ["F", "G", "H", "I", "J"];
+
+      shelves1.forEach(shelf => {
+        const shelfDiv = document.createElement("div");
+        shelfDiv.className = "vendo-glass-shelf";
+        shelfDiv.innerHTML = `<div class="shelf-label-row"><span>Ripiano ${shelf}</span><span>Food H24 4°C</span></div>`;
+        const slotsGrid = document.createElement("div");
+        slotsGrid.className = "shelf-slots-grid";
+        for (let col = 1; col <= 5; col++) {
+          const code = shelf + col;
+          const slot = vendingSlots.find(s => s.position_code === code);
+          slotsGrid.appendChild(generateKioskSlotEl(code, slot));
+        }
+        shelfDiv.appendChild(slotsGrid);
+        cab1.appendChild(shelfDiv);
+      });
+
+      shelves2.forEach(shelf => {
+        const shelfDiv = document.createElement("div");
+        shelfDiv.className = "vendo-glass-shelf";
+        shelfDiv.innerHTML = `<div class="shelf-label-row"><span>Ripiano ${shelf}</span><span>Craft & Drink 11°C</span></div>`;
+        const slotsGrid = document.createElement("div");
+        slotsGrid.className = "shelf-slots-grid";
+        for (let col = 1; col <= 5; col++) {
+          const code = shelf + col;
+          const slot = vendingSlots.find(s => s.position_code === code);
+          slotsGrid.appendChild(generateKioskSlotEl(code, slot));
+        }
+        shelfDiv.appendChild(slotsGrid);
+        cab2.appendChild(shelfDiv);
+      });
+    }
+
+    function generateKioskSlotEl(code, slot) {
+      const el = document.createElement("div");
+      
+      if (!slot || !slot.menu_item_id) {
+        el.className = "shelf-slot out-of-stock";
+        el.innerHTML = `<span class="slot-position-badge">${code}</span><div class="slot-item-emoji">🫙</div><div class="slot-item-name-micro">Vuoto</div><div class="slot-price-micro">—</div>`;
+        return el;
+      }
+
+      const item = menuItems.find(m => m.id === slot.menu_item_id);
+      const name = item ? item.name : "Prodotto";
+      const price = item ? item.price : 0.00;
+
+      let emoji = "🥗";
+      if (name.includes("Spuma") || name.includes("Chinotto") || name.includes("Birra")) emoji = "🥤";
+      else if (name.includes("Chianti") || name.includes("Vino")) emoji = "🍷";
+      else if (name.includes("Tagliere") || name.includes("Pecorino")) emoji = "🧀";
+      else if (name.includes("Schiacciata") || name.includes("Panino")) emoji = "🥪";
+      else if (name.includes("Pappa") || name.includes("Ribollita") || name.includes("Cacciucco")) emoji = "🍲";
+
+      const isLow = slot.current_quantity > 0 && slot.current_quantity <= 3;
+      const isEmpty = slot.current_quantity === 0;
+      const isMaint = slot.status === "MAINTENANCE";
+
+      if (isMaint) {
+        el.className = "shelf-slot maintenance";
+        el.innerHTML = `<span class="slot-position-badge">${code}</span><div class="slot-item-emoji">⚠️</div><div class="slot-item-name-micro" style="color:var(--danger)">GUASTO</div><div class="slot-price-micro">—</div>`;
+        return el;
+      }
+
+      if (isEmpty) {
+        el.className = "shelf-slot out-of-stock";
+        el.innerHTML = `<span class="slot-position-badge">${code}</span><div class="slot-item-emoji">🫙</div><div class="slot-item-name-micro">Esaurito</div><div class="slot-price-micro">—</div>`;
+        return el;
+      }
+
+      el.className = `shelf-slot ${isLow ? 'low-stock' : ''}`;
+      el.innerHTML = `
+        <span class="slot-position-badge">${code}</span>
+        <div class="slot-item-emoji">${emoji}</div>
+        <div class="slot-item-name-micro">${name}</div>
+        <div class="slot-price-micro">€ ${price.toFixed(2)}</div>
+        <div class="slot-qty-dot ${isLow?'low':''}">${slot.current_quantity} rimasti</div>
+      `;
+
+      el.onclick = function() {
+        addSlotToCart(slot, item);
+      };
+
+      return el;
+    }
+
+    function addSlotToCart(slot, item) {
+      // Verifica disponibilità locale nel carrello
+      const currentInCart = kioskCart.find(c => c.slot_id === slot.id);
+      const qtyInCart = currentInCart ? currentInCart.quantity : 0;
+      
+      if (qtyInCart >= slot.current_quantity) {
+        alert("Scorte insufficienti per questo slot!");
+        return;
+      }
+
+      if (currentInCart) {
+        currentInCart.quantity++;
+      } else {
+        kioskCart.push({
+          slot_id: slot.id,
+          menu_item_id: item.id,
+          name: item.name,
+          price: item.price,
+          position_code: slot.position_code,
+          quantity: 1
+        });
+      }
+
+      logTelemetry(`Aggiunto al carrello slot ${slot.position_code} (${item.name})`);
+      updateKioskCartUI();
+    }
+
+    function changeCartQty(slotId, delta) {
+      const idx = kioskCart.findIndex(c => c.slot_id === slotId);
+      if (idx === -1) return;
+      
+      kioskCart[idx].quantity += delta;
+      if (kioskCart[idx].quantity <= 0) {
+        kioskCart.splice(idx, 1);
+      }
+      updateKioskCartUI();
+    }
+
+    function updateKioskCartUI() {
+      const container = document.getElementById("kiosk-cart-items");
+      container.innerHTML = "";
+      
+      let subtotal = 0.0;
+      let totalQty = 0;
+
+      kioskCart.forEach(item => {
+        subtotal += item.price * item.quantity;
+        totalQty += item.quantity;
+
+        const div = document.createElement("div");
+        div.className = "cart-item";
+        
+        if (item.position_code === "SERVIZIO") {
+          div.innerHTML = `
+            <div>
+              <div class="cart-item-name" style="color:var(--gold)">${item.name}</div>
+              <div class="cart-item-slot" style="color:var(--text-muted)">Servizio Kiosk Abilitato</div>
+            </div>
+            <div class="cart-item-actions">
+              <button class="btn-qty" onclick="changeCartQty(${item.slot_id}, -1)" style="background:rgba(229,57,53,0.15); color:var(--danger); border-color:var(--danger)">✕</button>
+            </div>
+          `;
+        } else {
+          div.innerHTML = `
+            <div>
+              <div class="cart-item-name">${item.name}</div>
+              <div class="cart-item-slot">Slot ${item.position_code} (x${item.quantity})</div>
+            </div>
+            <div class="cart-item-actions">
+              <button class="btn-qty" onclick="changeCartQty(${item.slot_id}, -1)">-</button>
+              <span style="font-weight:700">${item.quantity}</span>
+              <button class="btn-qty" onclick="changeCartQty(${item.slot_id}, 1)">+</button>
+            </div>
+          `;
+        }
+        container.appendChild(div);
+      });
+
+      if (kioskCart.length === 0) {
+        container.innerHTML = `<div class="cart-empty">Tocca uno slot del distributore per selezionare!</div>`;
+      }
+
+      // --- PANNELLO SUGGERIMENTI UPSELL AUTOMATIZZATI ---
+      const hasMicrowaveable = kioskCart.some(c => {
+        const mi = menuItems.find(item => item.id === c.menu_item_id);
+        if (!mi) return false;
+        if (mi.requires_microwave) return true;
+        const warmCategories = ["Zuppa", "Secondo di carne", "Quinto quarto", "Piatto unico", "Zuppa di pesce"];
+        return warmCategories.includes(mi.category) && !mi.code.startsWith("SRV-");
+      });
+      
+      const hasHotWaterRequired = kioskCart.some(c => {
+        const mi = menuItems.find(item => item.id === c.menu_item_id);
+        return mi && mi.requires_hot_water;
+      });
+
+      const hasMicrowaveService = kioskCart.some(c => {
+        const mi = menuItems.find(item => item.id === c.menu_item_id);
+        return mi && mi.code === "SRV-002";
+      });
+
+      const hasHotWaterService = kioskCart.some(c => {
+        const mi = menuItems.find(item => item.id === c.menu_item_id);
+        return mi && mi.code === "SRV-001";
+      });
+
+      const suggestionsContainer = document.getElementById("kiosk-upsell-suggestions");
+      if (suggestionsContainer) {
+        suggestionsContainer.innerHTML = "";
+
+        if (hasMicrowaveable && !hasMicrowaveService) {
+          const sug = document.createElement("div");
+          sug.style.padding = "10px";
+          sug.style.border = "1px solid rgba(255,152,0,0.3)";
+          sug.style.borderRadius = "8px";
+          sug.style.background = "rgba(255,152,0,0.05)";
+          sug.style.display = "flex";
+          sug.style.justifyContent = "space-between";
+          sug.style.alignItems = "center";
+          sug.style.fontSize = "0.75rem";
+          sug.innerHTML = `
+            <div style="color:#ff9800; font-weight:500; max-width:70%">🔥 Vuoi riscaldarlo al volo? Aggiungi il microonde a soli €0.20!</div>
+            <button onclick="addServiceToCart('SRV-002')" style="padding:4px 8px; border-radius:4px; border:none; background:#ff9800; color:#000; font-weight:bold; cursor:pointer">Aggiungi</button>
+          `;
+          suggestionsContainer.appendChild(sug);
+        }
+
+        if (hasHotWaterRequired && !hasHotWaterService) {
+          const sug = document.createElement("div");
+          sug.style.padding = "10px";
+          sug.style.border = "1px solid rgba(33,150,243,0.3)";
+          sug.style.borderRadius = "8px";
+          sug.style.background = "rgba(33,150,243,0.05)";
+          sug.style.display = "flex";
+          sug.style.justifyContent = "space-between";
+          sug.style.alignItems = "center";
+          sug.style.fontSize = "0.75rem";
+          sug.innerHTML = `
+            <div style="color:#2196f3; font-weight:500; max-width:70%">🚰 Hai bisogno di acqua calda per la tua cup? Solo €0.10!</div>
+            <button onclick="addServiceToCart('SRV-001')" style="padding:4px 8px; border-radius:4px; border:none; background:#2196f3; color:#fff; font-weight:bold; cursor:pointer">Aggiungi</button>
+          `;
+          suggestionsContainer.appendChild(sug);
+        }
+      }
+
+      // Calculations net of VAT / promotions
+      const discountVal = subtotal * discountRate;
+      const total = subtotal - discountVal;
+
+      document.getElementById("kiosk-cart-count").innerText = totalQty;
+      document.getElementById("kiosk-cart-subtotal").innerText = "€ " + subtotal.toFixed(2);
+      
+      if (discountVal > 0) {
+        document.getElementById("kiosk-discount-row").style.display = "flex";
+        document.getElementById("kiosk-discount-val").innerText = "- € " + discountVal.toFixed(2);
+        document.getElementById("kiosk-discount-lbl").innerText = `Sconto (${(discountRate*100).toFixed(0)}%)`;
+      } else {
+        document.getElementById("kiosk-discount-row").style.display = "none";
+      }
+      
+      document.getElementById("kiosk-cart-total").innerText = "€ " + total.toFixed(2);
+      document.getElementById("btn-kiosk-checkout").disabled = kioskCart.length === 0;
+    }
+
+    function addServiceToCart(serviceCode) {
+      const serviceItem = menuItems.find(i => i.code === serviceCode);
+      if (!serviceItem) {
+        logTelemetry(`Servizio ${serviceCode} non trovato nel catalogo.`, "WARNING");
+        return;
+      }
+      
+      const inCart = kioskCart.find(c => c.menu_item_id === serviceItem.id);
+      if (inCart) return; // Già presente
+      
+      kioskCart.push({
+        slot_id: -serviceItem.id, // ID negativo fittizio per evitare conflitti con gli slot reali
+        menu_item_id: serviceItem.id,
+        name: serviceItem.name,
+        price: serviceItem.price,
+        position_code: "SERVIZIO",
+        quantity: 1
+      });
+      
+      logTelemetry(`Aggiunto servizio al carrello: ${serviceItem.name}`);
+      updateKioskCartUI();
+    }
+
+    // CHECKOUT MODAL LOGIC
+    function openKioskCheckout() {
+      document.getElementById("kiosk-checkout-modal").style.display = "flex";
+      insertedCash = 0.0;
+      setKioskPaymentMethod("CASH");
+      
+      const totalText = document.getElementById("kiosk-cart-total").innerText;
+      document.getElementById("modal-checkout-total").innerText = totalText;
+      updateKioskCashUI();
+      
+      logTelemetry(`Apertura portale pagamento cassa per totale: ${totalText}`);
+    }
+
+    function closeKioskCheckout() {
+      document.getElementById("kiosk-checkout-modal").style.display = "none";
+    }
+
+    function setKioskPaymentMethod(method) {
+      selectedPaymentMethod = method;
+      
+      // Update buttons active
+      document.querySelectorAll(".payment-method-btn").forEach(b => b.classList.remove("active"));
+      if (method === "CASH") document.getElementById("btn-pay-cash").classList.add("active");
+      if (method === "POS") document.getElementById("btn-pay-pos").classList.add("active");
+      if (method === "SATISPAY") document.getElementById("btn-pay-satispay").classList.add("active");
+      if (method === "CRYPTO_EURT") document.getElementById("btn-pay-crypto").classList.add("active");
+
+      // Show correct view
+      document.getElementById("checkout-view-cash").style.display = method === "CASH" ? "block" : "none";
+      document.getElementById("checkout-view-pos").style.display = method === "POS" ? "block" : "none";
+      document.getElementById("checkout-view-satispay").style.display = method === "SATISPAY" ? "block" : "none";
+      document.getElementById("checkout-view-crypto").style.display = method === "CRYPTO_EURT" ? "block" : "none";
+      
+      // Reset confirmations
+      document.getElementById("btn-kiosk-confirm-checkout").disabled = true;
+      
+      if (method === "POS") {
+        logTelemetry("[MDB] Switched to Card POS terminal mode (waiting contactless tap)");
+      } else if (method === "CASH") {
+        logTelemetry("[MDB] Switched to Cash changer mode (tubes checking)");
+      } else if (method === "CRYPTO_EURT") {
+        const total = parseFloat(document.getElementById("kiosk-cart-total").innerText.replace("€ ",""));
+        document.getElementById("crypto-gross-amt").innerText = `${total.toFixed(2)} EURT`;
+      }
+    }
+
+    // Contanti simulator
+    function insertKioskCash(amt) {
+      insertedCash += amt;
+      logTelemetry(`[MDB Changer] Inserito € ${amt.toFixed(2)} fisicamente`);
+      updateKioskCashUI();
+    }
+
+    function updateKioskCashUI() {
+      const targetPay = parseFloat(document.getElementById("kiosk-cart-total").innerText.replace("€ ",""));
+      document.getElementById("kiosk-cash-inserted").innerText = "€ " + insertedCash.toFixed(2);
+      
+      const change = Math.max(0, insertedCash - targetPay);
+      document.getElementById("kiosk-cash-change").innerText = "€ " + change.toFixed(2);
+      
+      if (insertedCash >= targetPay) {
+        document.getElementById("btn-kiosk-confirm-checkout").disabled = false;
+        logTelemetry(`[MDB Changer] Credito sufficiente per completare. Resto: € ${change.toFixed(2)}`);
+      } else {
+        document.getElementById("btn-kiosk-confirm-checkout").disabled = true;
+      }
+    }
+
+    // POS simulator (ISO 8583 package)
+    async function simulateKioskPosTap() {
+      const total = parseFloat(document.getElementById("kiosk-cart-total").innerText.replace("€ ",""));
+      const totalCents = Math.round(total * 100);
+      
+      // ISO 8583 packing simulator
+      const fields = {
+        3: "000000", // Processing code for purchase
+        4: totalCents.toString().padStart(12, "0"),
+        11: Math.floor(Math.random()*900000+100000).toString(), // STAN
+        41: "TERMTOSC",
+        42: "MERCHTOSCANACCI"
+      };
+      
+      logTelemetry("[POS] Packing ISO 8583 financial request (MTI 0200)...");
+      
+      // Hex Bitmap generator
+      let bitmapBin = new Array(64).fill('0');
+      [3, 4, 11, 41, 42].forEach(f => bitmapBin[f-1] = '1');
+      const bitmapHex = BigInt("0b" + bitmapBin.join("")).toString(16).toUpperCase().padStart(16, "0");
+      
+      const rawIsoRequest = "0200" + bitmapHex + fields[3] + fields[4] + fields[11] + fields[41] + fields[42];
+      logTelemetry(`[POS] Raw ISO8583 request generated: ${rawIsoRequest}`);
+
+      try {
+        const res = await fetch(`${API_BASE}/pos/iso8583`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ iso_message: rawIsoRequest })
+        });
+        const data = await res.json();
+        
+        // Show gateway logs in telemetry console
+        if (data.gateway_logs) {
+          data.gateway_logs.forEach(l => logTelemetry(l, "BANKHOST"));
+        }
+
+        if (data.status === "APPROVED") {
+          logTelemetry("[POS] Received approved packet from host (MTI 0210, F39 = '00')");
+          document.getElementById("btn-kiosk-confirm-checkout").disabled = false;
+        } else {
+          logTelemetry("[POS] Host declined card payment transaction", "WARNING");
+        }
+      } catch (err) {
+        logTelemetry("Errore durante la connessione con la banca", "ERROR");
+      }
+    }
+
+    // Satispay Simulator
+    async function requestKioskSatispay() {
+      const phone = document.getElementById("satispay-kiosk-phone").value;
+      const total = parseFloat(document.getElementById("kiosk-cart-total").innerText.replace("€ ",""));
+      
+      document.getElementById("satispay-loading-bar").style.display = "block";
+      logTelemetry(`[Satispay API] Richiesta push inviata al numero ${phone}...`);
+
+      try {
+        const res = await fetch(`${API_BASE}/payments/satispay/request`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone_number: phone, amount: total })
+        });
+        const data = await res.json();
+        
+        // Auto approve Satispay payment after 3 seconds for simulation flow
+        setTimeout(async () => {
+          const appRes = await fetch(`${API_BASE}/payments/satispay/approve/${data.payment_id}`, { method: "POST" });
+          const appData = await appRes.json();
+          if (appData.status === "APPROVED") {
+            logTelemetry("[Satispay API] Pagamento push autorizzato con successo!");
+            document.getElementById("satispay-loading-bar").style.display = "none";
+            document.getElementById("btn-kiosk-confirm-checkout").disabled = false;
+          }
+        }, 3000);
+
+      } catch (err) {
+        logTelemetry("Errore push Satispay", "ERROR");
+      }
+    }
+
+    // Crypto EVM Simulator
+    async function simulateKioskCryptoTx() {
+      const total = parseFloat(document.getElementById("kiosk-cart-total").innerText.replace("€ ",""));
+      const mockTxHash = "0x" + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join("");
+      
+      logTelemetry(`[Polygon EVM] Verifico transazione blockchain per ${total} EURT...`);
+
+      try {
+        const res = await fetch(`${API_BASE}/payments/crypto/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tx_hash: mockTxHash, amount: total })
+        });
+        const data = await res.json();
+        if (data.status === "CONFIRMED") {
+          logTelemetry(`[Polygon EVM] Blocco confermato (#${data.block_number}). Ricevuti ${total} EURT.`);
+          document.getElementById("btn-kiosk-confirm-checkout").disabled = false;
+        }
+      } catch (err) {
+        logTelemetry("Errore verifica stablecoin", "ERROR");
+      }
+    }
+
+    // Submit order to backend
+    async function submitKioskOrder() {
+      const total = parseFloat(document.getElementById("kiosk-cart-total").innerText.replace("€ ",""));
+      
+      const payload = {
+        order_type: "VENDING",
+        customer_name: "Kiosk Cliente Touchscreen",
+        customer_phone: "+39 000 0000000",
+        payment_method: selectedPaymentMethod,
+        payment_status: "PAID",
+        items: kioskCart.map(c => ({ menu_item_id: c.menu_item_id, quantity: c.quantity }))
+      };
+
+      logTelemetry("[MDB Controller] Sending release command to motor spirals...");
+
+      try {
+        const res = await fetch(`${API_BASE}/orders`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) throw new Error("Errore durante la registrazione dell'ordine.");
+        
+        const data = await res.json();
+        logTelemetry(`[MDB Controller] Erogazione completata! Codice Vending generato: ${data.vending_code}`);
+        
+        // Auto-completa la transazione H24 sul kiosk (in quanto erogato fisicamente)
+        await fetch(`${API_BASE}/orders/${data.id}?status=COMPLETED`, { method: "PATCH" });
+        logTelemetry(`[MDB Controller] Spirale rilasciata. Transazione completata.`);
+
+        alert(`PRODOTTO EROGATO! Ritiro scompartimento basso.\nCodice sblocco: ${data.vending_code}`);
+        
+        // Clear cart and close modal
+        kioskCart = [];
+        updateKioskCartUI();
+        closeKioskCheckout();
+        
+        // Refresh cabinets stock levels
+        fetchVendingSlots();
+
+      } catch (err) {
+        logTelemetry("Errore durante il completamento dell'acquisto", "ERROR");
+        alert(err.message);
+      }
+    }
+  </script>
+</body>
+</html>
