@@ -3680,7 +3680,7 @@
     // --- Inizializzazione all'avvio ---
     window.addEventListener("load", async () => {
       // Carica autenticazione da sessionStorage se presente
-      loadAuthFromSession();
+      await loadAuthFromSession();
       
       await testConnection();
       await loadMenuItems();
@@ -3697,31 +3697,31 @@
     });
 
     // --- Carica / Salva Sessione Autenticazione ---
-    function loadAuthFromSession() {
+    async function loadAuthFromSession() {
       const token = sessionStorage.getItem("jwt_token");
       const user = sessionStorage.getItem("current_user");
       if (token && user) {
         appState.userToken = token;
         appState.currentUser = JSON.parse(user);
-        updateAuthBadgeUI();
+        await updateAuthBadgeUI();
       }
     }
 
-    function saveAuthToSession(token, user) {
+    async function saveAuthToSession(token, user) {
       sessionStorage.setItem("jwt_token", token);
       sessionStorage.setItem("current_user", JSON.stringify(user));
       appState.userToken = token;
       appState.currentUser = user;
-      updateAuthBadgeUI();
+      await updateAuthBadgeUI();
     }
 
-    function logout() {
+    async function logout() {
       sessionStorage.removeItem("jwt_token");
       sessionStorage.removeItem("current_user");
       appState.userToken = null;
       appState.currentUser = null;
       
-      updateAuthBadgeUI();
+      await updateAuthBadgeUI();
       
       // Resetta i portali visualizzati
       document.getElementById("rider-lock-screen").style.display = "block";
@@ -3732,7 +3732,7 @@
       switchTab("clienti");
     }
 
-    function updateAuthBadgeUI() {
+    async function updateAuthBadgeUI() {
       const badge = document.getElementById("auth-badge");
       if (appState.currentUser) {
         badge.innerHTML = `👤 ${appState.currentUser.username} (${appState.currentUser.role}) [Esci]`;
@@ -3754,8 +3754,22 @@
           document.getElementById("gestione-lock-screen").style.display = "block";
           document.getElementById("gestione-active-portal").style.display = "none";
           
-          // Imposta ID rider corretto in base all'utente
-          if (appState.currentUser.username === "claudio") appState.activeRiderId = 1;
+          // Imposta ID rider corretto in base all'utente in modo dinamico
+          try {
+            const res = await fetch(`${API_BASE}/riders`);
+            if (res.ok) {
+              const riders = await res.json();
+              const currentRider = riders.find(r => r.name.toLowerCase() === appState.currentUser.username.toLowerCase());
+              if (currentRider) {
+                appState.activeRiderId = currentRider.id;
+              } else {
+                appState.activeRiderId = null;
+              }
+            }
+          } catch (err) {
+            console.error("Errore lookup rider id:", err);
+            if (appState.currentUser.username === "claudio") appState.activeRiderId = 1;
+          }
         } else { // CUSTOMER
           document.getElementById("rider-lock-screen").style.display = "block";
           document.getElementById("rider-active-portal").style.display = "none";
@@ -3808,7 +3822,7 @@
 
         if (res.ok) {
           const data = await res.json();
-          saveAuthToSession(data.access_token, data.user);
+          await saveAuthToSession(data.access_token, data.user);
           closeAuthModal();
           alert(`Accesso eseguito con successo! Benvenuto, ${data.user.username}.`);
           
