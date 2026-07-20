@@ -47,13 +47,82 @@ def get_user_by_username(session: Session, username: str) -> Optional[User]:
 def get_user_by_email(session: Session, email: str) -> Optional[User]:
     return session.exec(select(User).where(User.email == email)).first()
 
+import uuid
+import smtplib
+import os
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def send_verification_email(session: Session, user: User):
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = os.getenv("SMTP_PORT")
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    smtp_sender = os.getenv("SMTP_SENDER", "help@toscanaccio.eu")
+    
+    verification_link = f"https://api.toscanaccio.eu/auth/verify?token={user.verification_token}"
+    
+    msg_body = f"Ciao {user.username}!\n\nGrazie per esserti registrato su Toscanaccio.\n\nPer attivare il tuo account e confermare la registrazione, clicca sul seguente link:\n{verification_link}\n\nSe non ti sei registrato tu, ignora questa email.\n\nStaff Toscanaccio H24"
+    
+    is_real_smtp = (
+        smtp_host and smtp_port and smtp_user and smtp_password 
+        and "INSERISCI_QUI" not in smtp_password and smtp_password.strip() != ""
+    )
+    
+    if is_real_smtp:
+        try:
+            port = int(smtp_port)
+            msg = MIMEMultipart()
+            msg['From'] = smtp_sender
+            msg['To'] = user.email
+            msg['Subject'] = "Conferma la tua registrazione su Toscanaccio"
+            msg.attach(MIMEText(msg_body, 'plain'))
+            
+            if port == 465:
+                server = smtplib.SMTP_SSL(smtp_host, port, timeout=10)
+            else:
+                server = smtplib.SMTP(smtp_host, port, timeout=10)
+                server.starttls()
+            
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_sender, user.email, msg.as_string())
+            server.quit()
+            print(f"Email reale inviata con successo a {user.email}")
+            
+            create_notification_log(
+                session=session,
+                recipient_name=user.username,
+                channel="EMAIL",
+                phone_number="N/A",
+                message_content=f"Email di attivazione reale inviata a {user.email}. Link: {verification_link}",
+                event_type="EMAIL_VERIFICATION"
+            )
+            return
+        except Exception as e:
+            print(f"Errore invio email reale SMTP: {e}. Procedo con simulazione...")
+            
+    simulated_msg = f"[SIMULAZIONE EMAIL INVIATA A {user.email}]\nOggetto: Conferma la tua registrazione su Toscanaccio\nCorpo:\n{msg_body}"
+    print(simulated_msg)
+    create_notification_log(
+        session=session,
+        recipient_name=user.username,
+        channel="EMAIL",
+        phone_number="N/A",
+        message_content=simulated_msg,
+        event_type="EMAIL_VERIFICATION"
+    )
+
 def create_user(session: Session, user_data: UserCreate) -> User:
     hashed_pwd = get_password_hash(user_data.password)
+    verification_token = uuid.uuid4().hex
     user = User(
         username=user_data.username,
         email=user_data.email,
         hashed_password=hashed_pwd,
-        role=user_data.role
+        role=user_data.role,
+        is_verified=False,
+        verification_token=verification_token,
+        privacy_accepted=user_data.privacy_accepted
     )
     session.add(user)
     session.commit()
@@ -65,6 +134,44 @@ def create_user(session: Session, user_data: UserCreate) -> User:
         session.add(rider)
         session.commit()
         
+    send_verification_email(session, user)
+    return user
+
+def verify_user_email(session: Session, token: str) -> Optional[User]:
+    user = session.exec(select(User).where(User.verification_token == token)).first()
+    if not user:
+        return None
+    user.is_verified = True
+    user.verification_token = None
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+def create_or_get_sso_user(session: Session, email: str, username: str, provider: str, privacy_accepted: bool) -> User:
+    user = session.exec(select(User).where(User.email == email)).first()
+    if user:
+        if not user.is_verified:
+            user.is_verified = True
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+        return user
+        
+    random_password = uuid.uuid4().hex
+    hashed_pwd = get_password_hash(random_password)
+    user = User(
+        username=username,
+        email=email,
+        hashed_password=hashed_pwd,
+        role=UserRole.CUSTOMER,
+        is_verified=True,
+        verification_token=None,
+        privacy_accepted=privacy_accepted
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
     return user
 
 # --- MENU ITEMS CRUD ---

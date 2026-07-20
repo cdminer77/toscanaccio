@@ -86,6 +86,12 @@ def login_user(login_data: schemas.UserLogin, session: Session = Depends(get_ses
             detail="Nome utente o password non validi. Riprova!"
         )
     
+    if not getattr(user, "is_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account non verificato! Controlla la tua email per attivare il tuo profilo."
+        )
+    
     # Genera token di accesso
     access_token = create_access_token(
         data={"sub": user.username, "role": user.role.value}
@@ -95,6 +101,133 @@ def login_user(login_data: schemas.UserLogin, session: Session = Depends(get_ses
         "token_type": "bearer",
         "user": user
     }
+
+from fastapi.responses import HTMLResponse
+import urllib.request
+import json
+
+@app.get("/auth/verify", response_class=HTMLResponse)
+def verify_email(token: str, session: Session = Depends(get_session)):
+    user = crud.verify_user_email(session, token)
+    if not user:
+        return HTMLResponse(
+            status_code=400,
+            content="""
+            <html>
+                <head>
+                    <title>Verifica Fallita — Toscanaccio</title>
+                    <style>
+                        body { font-family: 'Outfit', sans-serif; text-align: center; padding: 50px; background-color: #141916; color: #d1c7bd; }
+                        .container { background: #1b221e; padding: 40px; border-radius: 12px; border: 1px solid #2e3b33; max-width: 500px; margin: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+                        h1 { color: #ba5c33; margin-bottom: 20px; }
+                        p { font-size: 1.1rem; line-height: 1.6; }
+                        .btn { display: inline-block; margin-top: 30px; padding: 12px 24px; background-color: #ba5c33; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; transition: background 0.2s; }
+                        .btn:hover { background-color: #a44f2b; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>Link non valido</h1>
+                        <p>Il token di verifica è non valido, scaduto o già utilizzato.</p>
+                        <a href="https://www.toscanaccio.eu" class="btn">Torna al Sito</a>
+                    </div>
+                </body>
+            </html>
+            """
+        )
+        
+    return HTMLResponse(
+        content="""
+        <html>
+            <head>
+                <title>Account Verificato! — Toscanaccio</title>
+                <style>
+                    body { font-family: 'Outfit', sans-serif; text-align: center; padding: 50px; background-color: #141916; color: #d1c7bd; }
+                    .container { background: #1b221e; padding: 40px; border-radius: 12px; border: 1px solid #2e3b33; max-width: 500px; margin: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+                    h1 { color: #5cb85c; margin-bottom: 20px; }
+                    p { font-size: 1.1rem; line-height: 1.6; }
+                    .btn { display: inline-block; margin-top: 30px; padding: 12px 24px; background-color: #5cb85c; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; transition: background 0.2s; }
+                    .btn:hover { background-color: #4cae4c; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>Account Verificato!</h1>
+                    <p>La tua email è stata confermata con successo. Ora puoi effettuare il login dal sito.</p>
+                    <a href="https://www.toscanaccio.eu" class="btn">Accedi Ora</a>
+                </div>
+            </body>
+        </html>
+        """
+    )
+
+@app.get("/auth/config")
+def get_auth_config():
+    return {
+        "google_client_id": os.getenv("GOOGLE_CLIENT_ID", "")
+    }
+
+@app.post("/auth/sso", response_model=schemas.Token)
+def sso_login(sso_data: schemas.UserSSOLogin, session: Session = Depends(get_session)):
+    user = crud.create_or_get_sso_user(
+        session=session,
+        email=sso_data.email,
+        username=sso_data.username,
+        provider=sso_data.provider,
+        privacy_accepted=sso_data.privacy_accepted
+    )
+    
+    access_token = create_access_token(
+        data={"sub": user.username, "role": user.role.value}
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user
+    }
+
+@app.post("/auth/google", response_model=schemas.Token)
+def google_login(token_data: dict, session: Session = Depends(get_session)):
+    id_token = token_data.get("credential")
+    if not id_token:
+        raise HTTPException(status_code=400, detail="Token Google mancante")
+        
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    
+    try:
+        url = f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            
+        aud = data.get("aud")
+        if aud != google_client_id and google_client_id != "":
+            raise HTTPException(status_code=400, detail="Client ID non corrispondente")
+            
+        email = data.get("email")
+        name = data.get("name", email.split("@")[0] if email else "GoogleUser")
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Impossibile ottenere l'email da Google")
+            
+        user = crud.create_or_get_sso_user(
+            session=session,
+            email=email,
+            username=name,
+            provider="GOOGLE",
+            privacy_accepted=True
+        )
+        
+        access_token = create_access_token(
+            data={"sub": user.username, "role": user.role.value}
+        )
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": user
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Convalida Google fallita: {str(e)}")
 
 # --- MENU API ---
 @app.get("/menu", response_model=List[schemas.MenuItemRead])

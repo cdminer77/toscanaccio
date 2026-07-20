@@ -34,6 +34,9 @@ class User(SQLModel, table=True):
     hashed_password: str
     role: UserRole = Field(default=UserRole.CUSTOMER)
     balance: float = Field(default=0.0)
+    is_verified: bool = Field(default=False)
+    verification_token: Optional[str] = Field(default=None)
+    privacy_accepted: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class MenuItem(SQLModel, table=True):

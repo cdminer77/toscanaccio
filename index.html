@@ -1688,6 +1688,8 @@
       outline: 2px solid var(--gold);
     }
   </style>
+  <!-- Google Sign-In SDK per SSO -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <!-- Skip Link for screen readers and keyboard accessibility -->
@@ -3028,8 +3030,47 @@
             <option value="RIDER">Rider per Toscanaccio</option>
           </select>
         </div>
+        
+        <!-- Checkbox Privacy Policy -->
+        <div class="form-group" style="display:flex; gap:10px; align-items:flex-start; margin-top:15px; margin-bottom:15px;">
+          <input type="checkbox" id="reg-privacy" style="margin-top:3px; cursor:pointer; width:16px; height:16px;">
+          <label for="reg-privacy" style="font-size:0.8rem; line-height:1.4; color:var(--text-muted); cursor:pointer">
+            Accetto la <a href="#" onclick="openLegalModal('privacy'); event.stopPropagation();" style="color:var(--terracotta-light); text-decoration:underline">Privacy Policy</a> ed i <a href="#" onclick="openLegalModal('terms'); event.stopPropagation();" style="color:var(--terracotta-light); text-decoration:underline">Termini di Servizio</a> di Toscanaccio.
+          </label>
+        </div>
+
         <button class="btn-checkout" style="width:100%; background:var(--olive); border-color:var(--olive)" onclick="submitRegister()">Crea Account</button>
         <p style="font-size:0.85rem; color:var(--text-muted); text-align:center; margin-top:16px">Hai già un account? <a href="#" style="color:var(--terracotta-light); text-decoration:underline" onclick="toggleAuthView(true)">Esegui il login</a></p>
+      </div>
+
+      <!-- SSO Section (Shared) -->
+      <div class="sso-divider" style="display:flex; align-items:center; margin: 20px 0; color: var(--text-muted); font-size: 0.8rem;">
+        <span style="flex:1; height:1px; background:var(--border)"></span>
+        <span style="padding: 0 10px;">Oppure continua con</span>
+        <span style="flex:1; height:1px; background:var(--border)"></span>
+      </div>
+
+      <div class="sso-buttons" style="display:flex; flex-direction:column; gap:10px; margin-bottom:10px">
+        <!-- Google SSO -->
+        <div id="google-sso-btn-container" style="display:flex; justify-content:center; width:100%">
+          <button class="btn-checkout" style="width:100%; display:flex; align-items:center; justify-content:center; gap:10px; background:#1b221e; border:1px solid var(--border); color:#fff; font-size:0.9rem" onclick="triggerGoogleSSO()">
+            <svg style="width:18px; height:18px;" viewBox="0 0 24 24">
+              <path fill="#EA4335" d="M12 5.04c1.72 0 3.01.73 3.68 1.34l2.74-2.74C16.73 2.12 14.54 1 12 1 7.37 1 3.52 3.65 1.7 7.54l3.21 2.49c.82-2.49 3.14-4.99 7.09-4.99z"/>
+              <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.42 3.57l3.2 2.49c1.86-1.72 2.94-4.25 2.94-8.3z"/>
+              <path fill="#FBBC05" d="M4.91 10.03c-.23-.69-.37-1.42-.37-2.18s.14-1.49.37-2.18L1.7 3.18C.62 5.31 0 7.73 0 10.29s.62 4.98 1.7 7.11l3.21-2.49c-.23-.69-.37-1.42-.37-2.18z"/>
+              <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.92l-3.2-2.49c-.89.6-2.03.95-3.56.95-3.95 0-7.27-2.5-8.09-4.99L1.9 16.04C3.72 19.93 7.57 23 12 23z"/>
+            </svg>
+            Accedi con Google
+          </button>
+        </div>
+        
+        <!-- Apple SSO -->
+        <button class="btn-checkout" style="width:100%; display:flex; align-items:center; justify-content:center; gap:10px; background:#1b221e; border:1px solid var(--border); color:#fff; font-size:0.9rem" onclick="triggerAppleSSO()">
+          <svg style="width:18px; height:18px;" viewBox="0 0 24 24">
+            <path fill="#fff" d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.17c.66-.81 1.11-1.93.99-3.06-1 .04-2.22.67-2.94 1.51-.64.74-1.2 1.88-1.05 3 .12.01.24.02.36.02.94 0 2.1-.61 2.64-1.47z"/>
+          </svg>
+          Accedi con Apple
+        </button>
       </div>
     </div>
   </div>
@@ -3453,6 +3494,36 @@
     </div>
   </footer>
 
+  <!-- Modale Simulatore SSO Google / Apple -->
+  <div id="sso-simulator-modal" class="modal-overlay" style="z-index: 1100;">
+    <div class="modal-card" style="max-width: 400px; background:#1b221e; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.6);">
+      <div class="modal-header" style="padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.05)">
+        <h3 class="modal-title" id="sso-simulator-title" style="margin: 0; color: var(--gold); font-family: 'Outfit', sans-serif;">Accedi con Google</h3>
+        <button class="modal-close" onclick="closeSSOSimulator()" style="background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 24px; text-align: center">
+        <div id="sso-sim-avatar" style="width: 60px; height: 60px; border-radius: 50%; background: var(--olive); margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #fff; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+          G
+        </div>
+        <p style="font-size: 0.95rem; margin-bottom: 20px; color: var(--text-muted)">
+          Seleziona un account per procedere su <strong>Toscanaccio</strong>
+        </p>
+        <div id="sso-accounts-list" style="display:flex; flex-direction:column; gap:10px;">
+          <!-- Account di test caricati dinamicamente -->
+        </div>
+        
+        <!-- Form per inserire account custom -->
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); text-align: left;">
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 5px;">Oppure usa un altro account:</label>
+          <div style="display:flex; gap:5px">
+            <input type="email" id="sso-custom-email" class="form-control" placeholder="es: utente@gmail.com" style="font-size: 0.85rem; padding: 6px 10px; flex:1">
+            <button class="btn-checkout" style="padding: 6px 15px; margin:0; font-size:0.85rem" onclick="submitCustomSSO()">Procedi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ========================================================== -->
   <!-- JAVASCRIPT: LOGICA DEL FRONTEND SPA ED INTEGRAZIONI        -->
   <!-- ========================================================== -->
@@ -3694,6 +3765,9 @@
       
       // Inizializza il banner dei cookie
       initCookieBanner();
+      
+      // Inizializza il modulo Google SSO
+      await initGoogleSSO();
     });
 
     // --- Carica / Salva Sessione Autenticazione ---
@@ -3844,9 +3918,15 @@
       const e = document.getElementById("reg-email").value.trim();
       const p = document.getElementById("reg-password").value.trim();
       const r = document.getElementById("reg-role").value;
+      const privacyChecked = document.getElementById("reg-privacy").checked;
 
       if (!u || !e || !p) {
         alert("Compila tutti i campi!");
+        return;
+      }
+
+      if (!privacyChecked) {
+        alert("Devi accettare la Privacy Policy ed i Termini di Servizio per registrarti!");
         return;
       }
 
@@ -3854,11 +3934,11 @@
         const res = await fetch(`${API_BASE}/auth/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: u, email: e, password: p, role: r })
+          body: JSON.stringify({ username: u, email: e, password: p, role: r, privacy_accepted: privacyChecked })
         });
 
         if (res.ok) {
-          alert("Registrazione completata! Esegui ora il login.");
+          alert("Registrazione completata!\nTi abbiamo inviato un'email per confermare e attivare il tuo account. Controlla la tua posta elettronica prima di effettuare il login.");
           toggleAuthView(true);
         } else {
           const err = await res.json();
@@ -6950,6 +7030,164 @@
       } catch (err) {
         console.error("Errore triggerMarketingPromo:", err);
       }
+    }
+
+    // ==========================================
+    // INTEGRAZIONE SOCIAL LOGIN (GOOGLE / APPLE SSO)
+    // ==========================================
+    let googleClientId = "";
+    let currentSsoProvider = "";
+    
+    async function initGoogleSSO() {
+      try {
+        const res = await fetch(`${API_BASE}/auth/config`);
+        if (res.ok) {
+          const config = await res.json();
+          googleClientId = config.google_client_id;
+          
+          if (googleClientId && window.google) {
+            window.google.accounts.id.initialize({
+              client_id: googleClientId,
+              callback: handleGoogleSSOCallback
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Errore configurazione Google SSO:", err);
+      }
+    }
+
+    async function handleGoogleSSOCallback(response) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential: response.credential })
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          await saveAuthToSession(data.access_token, data.user);
+          closeAuthModal();
+          showToast(`👤 Accesso Google riuscito! Benvenuto, ${data.user.username}`);
+          
+          await loadRiderData();
+          await loadGestioneData();
+        } else {
+          const err = await res.json();
+          alert("Errore autenticazione Google: " + err.detail);
+        }
+      } catch (e) {
+        console.error("Errore callback Google SSO:", e);
+        alert("Impossibile connettersi al server per l'autenticazione Google.");
+      }
+    }
+
+    function triggerGoogleSSO() {
+      if (!googleClientId || !window.google) {
+        simulateSSOLogin("GOOGLE");
+        return;
+      }
+      
+      try {
+        window.google.accounts.id.prompt();
+      } catch (e) {
+        console.error("Errore One Tap Google:", e);
+        simulateSSOLogin("GOOGLE");
+      }
+    }
+
+    function triggerAppleSSO() {
+      simulateSSOLogin("APPLE");
+    }
+
+    function simulateSSOLogin(provider) {
+      currentSsoProvider = provider;
+      const modal = document.getElementById("sso-simulator-modal");
+      const title = document.getElementById("sso-simulator-title");
+      const avatar = document.getElementById("sso-sim-avatar");
+      const list = document.getElementById("sso-accounts-list");
+      
+      title.textContent = provider === "GOOGLE" ? "Accedi con Google" : "Accedi con Apple ID";
+      avatar.textContent = provider === "GOOGLE" ? "G" : "";
+      avatar.style.background = provider === "GOOGLE" ? "var(--terracotta)" : "#000";
+      
+      const testAccounts = [
+        { name: "Mario Rossi", email: "mario.rossi@gmail.com" },
+        { name: "Chiara Bianchi", email: "chiara.bianchi@icloud.com" },
+        { name: "Rider Veloce", email: "rider.veloce@toscanaccio.eu" }
+      ];
+      
+      list.innerHTML = "";
+      testAccounts.forEach(acc => {
+        const btn = document.createElement("button");
+        btn.className = "btn-checkout";
+        btn.style.width = "100%";
+        btn.style.margin = "0";
+        btn.style.background = "rgba(255,255,255,0.05)";
+        btn.style.borderColor = "var(--border)";
+        btn.style.display = "flex";
+        btn.style.flexDirection = "column";
+        btn.style.alignItems = "flex-start";
+        btn.style.padding = "8px 15px";
+        btn.style.borderRadius = "6px";
+        
+        btn.innerHTML = `
+          <strong style="color:#fff; font-size:0.9rem">${acc.name}</strong>
+          <span style="font-size:0.75rem; color:var(--text-muted)">${acc.email}</span>
+        `;
+        btn.onclick = () => selectSimulatedSSOAccount(acc.name, acc.email);
+        list.appendChild(btn);
+      });
+      
+      modal.classList.add("active");
+    }
+
+    function closeSSOSimulator() {
+      document.getElementById("sso-simulator-modal").classList.remove("active");
+    }
+
+    async function selectSimulatedSSOAccount(name, email) {
+      closeSSOSimulator();
+      closeAuthModal();
+      
+      try {
+        const res = await fetch(`${API_BASE}/auth/sso`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email,
+            username: name,
+            provider: currentSsoProvider,
+            privacy_accepted: true
+          })
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          await saveAuthToSession(data.access_token, data.user);
+          showToast(`👤 Social Login (${currentSsoProvider}) riuscito!\nBenvenuto, ${data.user.username}`);
+          
+          await loadRiderData();
+          await loadGestioneData();
+        } else {
+          const err = await res.json();
+          alert("Errore Social Login: " + err.detail);
+        }
+      } catch (e) {
+        console.error(e);
+        alert("Errore di rete durante il social login.");
+      }
+    }
+
+    function submitCustomSSO() {
+      const email = document.getElementById("sso-custom-email").value.trim();
+      if (!email || !email.includes("@")) {
+        alert("Inserisci un indirizzo email valido!");
+        return;
+      }
+      const username = email.split("@")[0];
+      selectSimulatedSSOAccount(username, email);
     }
   </script>
 </body>

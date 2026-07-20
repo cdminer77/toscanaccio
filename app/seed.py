@@ -322,19 +322,25 @@ def seed_db(session: Session):
         username="admin",
         email="admin@toscanaccio.it",
         hashed_password=get_password_hash("adminpass"),
-        role=UserRole.ADMIN
+        role=UserRole.ADMIN,
+        is_verified=True,
+        privacy_accepted=True
     )
     rider_user = User(
         username="claudio",
         email="claudio@toscanaccio.it",
         hashed_password=get_password_hash("claudiopass"),
-        role=UserRole.RIDER
+        role=UserRole.RIDER,
+        is_verified=True,
+        privacy_accepted=True
     )
     customer_user = User(
         username="mario",
         email="mario@gmail.com",
         hashed_password=get_password_hash("mariopass"),
-        role=UserRole.CUSTOMER
+        role=UserRole.CUSTOMER,
+        is_verified=True,
+        privacy_accepted=True
     )
     
     if not session.exec(select(User).where(User.username == "admin")).first():

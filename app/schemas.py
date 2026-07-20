@@ -9,6 +9,7 @@ class UserCreate(BaseModel):
     email: str
     password: str
     role: Optional[UserRole] = UserRole.CUSTOMER
+    privacy_accepted: bool = True
 
 class UserRead(BaseModel):
     id: int
@@ -16,11 +17,19 @@ class UserRead(BaseModel):
     email: str
     role: UserRole
     balance: float
+    is_verified: bool
+    privacy_accepted: bool
     created_at: datetime
 
 class UserLogin(BaseModel):
     username: str
     password: str
+
+class UserSSOLogin(BaseModel):
+    email: str
+    username: str
+    provider: str
+    privacy_accepted: bool
 
 class Token(BaseModel):
     access_token: str
