@@ -27,7 +27,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 WEATHER_STATE = "SUNNY"
 SIMULATED_LATE_NIGHT = False
 
-# Coordinate della Cucina Centrale (Via Machiavelli 102, Livorno)
+# Coordinate della Cucina Centrale / Hub Operativo — Livorno (LI)
 KITCHEN_LAT = 43.54877
 KITCHEN_LNG = 10.31575
 

@@ -128,3 +128,67 @@ def test_paypal_authorization(client: TestClient):
     data = response.json()
     assert data["status"] == "APPROVED"
     assert "paypal_order_id" in data
+
+def test_iso20022_request_to_pay_flow_approved(client: TestClient):
+    """Verifica il flusso completo ISO 20022 pain.013 RTP con settlement approvato pacs.002 e calcolo risparmio fee."""
+    payload = {
+        "amount": 35.50,
+        "creditor_name": "Toscanaccio Bottega H24",
+        "creditor_iban": "IT60X0542811101000000123456",
+        "remittance_info": "Spesa Vini e Salumi"
+    }
+    # 1. Creazione Request-to-Pay (pain.013)
+    response_req = client.post("/pos/iso20022/request-to-pay", json=payload)
+    assert response_req.status_code == 200
+    data_req = response_req.json()
+    
+    assert data_req["status"] == "INITIATED"
+    assert data_req["protocol"] == "ISO 20022 (pain.013.001.09)"
+    assert "end_to_end_id" in data_req
+    assert "epc_qr_payload" in data_req
+    assert "BCD\n002" in data_req["epc_qr_payload"]
+    assert "EUR35.50" in data_req["epc_qr_payload"]
+    assert "<Document xmlns=" in data_req["xml_document"]
+    
+    # Verifica risparmio di costo calcolato
+    savings = data_req["cost_analysis"]
+    assert savings["card_interchange_estimate_eur"] > savings["iso20022_a2a_fee_eur"]
+    assert savings["net_savings_eur"] > 0
+    
+    e2e_id = data_req["end_to_end_id"]
+    
+    # 2. Verifica stato PENDING
+    response_st = client.get(f"/pos/iso20022/status/{e2e_id}")
+    assert response_st.status_code == 200
+    assert response_st.json()["status"] == "PENDING"
+    
+    # 3. Settlement approvato (pacs.002 ACTC)
+    response_settle = client.post("/pos/iso20022/settle", json={"end_to_end_id": e2e_id, "action": "APPROVE"})
+    assert response_settle.status_code == 200
+    data_settle = response_settle.json()
+    assert data_settle["status"] == "SETTLED"
+    assert data_settle["iso_status_code"] == "ACTC"
+    assert data_settle["savings_realized_eur"] > 0
+    assert "<TxSts>ACTC</TxSts>" in data_settle["xml_document"]
+
+def test_iso20022_settlement_rejected(client: TestClient):
+    """Verifica il rifiuto del pagamento con codice di reject bancario pacs.002 RJCT."""
+    payload = {"amount": 50.00}
+    response_req = client.post("/pos/iso20022/request-to-pay", json=payload)
+    assert response_req.status_code == 200
+    e2e_id = response_req.json()["end_to_end_id"]
+    
+    # Rifiuto
+    response_settle = client.post("/pos/iso20022/settle", json={
+        "end_to_end_id": e2e_id,
+        "action": "REJECT",
+        "reason_code": "AM04",
+        "reason_text": "Fondi insufficienti"
+    })
+    assert response_settle.status_code == 200
+    data_settle = response_settle.json()
+    assert data_settle["status"] == "DECLINED"
+    assert data_settle["iso_status_code"] == "RJCT"
+    assert "<TxSts>RJCT</TxSts>" in data_settle["xml_document"]
+    assert "<Cd>AM04</Cd>" in data_settle["xml_document"]
+

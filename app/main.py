@@ -446,6 +446,106 @@ def process_pos_transaction(payload: dict, session: Session = Depends(get_sessio
         ]
     }
 
+# --- ISO 20022 NEXT-GEN PAYMENT ENGINE (pain.013 RTP / EPC QR / pacs.002) ---
+from app.iso20022 import create_pain013_rtp, create_pacs002_status_report, parse_iso20022_xml
+
+# Registry in memoria per le sessioni di pagamento ISO 20022
+ISO20022_PAYMENTS = {}
+
+@app.post("/pos/iso20022/request-to-pay")
+def create_iso20022_payment_request(payload: dict, session: Session = Depends(get_session)):
+    """
+    Inizializza una richiesta di pagamento basata su ISO 20022 pain.013.001.09 (Request-To-Pay & EPC QR).
+    Permette pagamenti A2A diretti (bonifico istantaneo SEPA / TIPS / Wero) azzerando i costi di interchange.
+    """
+    amount = float(payload.get("amount", 0.0))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Importo non valido per richiesta ISO 20022")
+        
+    creditor_name = payload.get("creditor_name", "Toscanaccio Bottega H24")
+    creditor_iban = payload.get("creditor_iban", "IT60X0542811101000000123456")
+    creditor_bic = payload.get("creditor_bic", "BCITITMM")
+    remittance_info = payload.get("remittance_info", f"Cassa Toscanaccio Ordine #{datetime.now().strftime('%H%M%S')}")
+    debtor_name = payload.get("debtor_name")
+    debtor_iban = payload.get("debtor_iban")
+    
+    rtp = create_pain013_rtp(
+        creditor_name=creditor_name,
+        creditor_iban=creditor_iban,
+        creditor_bic=creditor_bic,
+        amount=amount,
+        currency=payload.get("currency", "EUR"),
+        remittance_info=remittance_info,
+        debtor_name=debtor_name,
+        debtor_iban=debtor_iban
+    )
+    
+    ISO20022_PAYMENTS[rtp["end_to_end_id"]] = {
+        **rtp,
+        "status": "PENDING"
+    }
+    
+    return {
+        "status": "INITIATED",
+        "protocol": "ISO 20022 (pain.013.001.09)",
+        "msg_id": rtp["msg_id"],
+        "end_to_end_id": rtp["end_to_end_id"],
+        "amount": amount,
+        "currency": rtp["currency"],
+        "epc_qr_payload": rtp["epc_qr_payload"],
+        "xml_document": rtp["xml_document"],
+        "cost_analysis": rtp["cost_analysis"]
+    }
+
+@app.post("/pos/iso20022/settle")
+def settle_iso20022_payment(payload: dict, session: Session = Depends(get_session)):
+    """
+    Riceve la conferma di accredito dalla banca/clearing house (pacs.002.001.12 Status Report).
+    Finalizza la transazione aggiornando lo stato contabile.
+    """
+    end_to_end_id = payload.get("end_to_end_id")
+    action = payload.get("action", "APPROVE") # APPROVE o REJECT
+    
+    if not end_to_end_id or end_to_end_id not in ISO20022_PAYMENTS:
+        raise HTTPException(status_code=404, detail="Transazione ISO 20022 non trovata")
+        
+    payment = ISO20022_PAYMENTS[end_to_end_id]
+    
+    if action == "APPROVE":
+        status_report = create_pacs002_status_report(
+            original_msg_id=payment["msg_id"],
+            original_end_to_end_id=end_to_end_id,
+            status_code="ACTC" # AcceptedTechnicalValidation
+        )
+        payment["status"] = "SETTLED"
+    else:
+        status_report = create_pacs002_status_report(
+            original_msg_id=payment["msg_id"],
+            original_end_to_end_id=end_to_end_id,
+            status_code="RJCT",
+            reason_code=payload.get("reason_code", "AM04"), # Insufficient funds or rejected
+            additional_info=payload.get("reason_text", "Fondi non disponibili sul conto debitore")
+        )
+        payment["status"] = "DECLINED"
+        
+    payment["status_report"] = status_report
+    
+    return {
+        "status": payment["status"],
+        "protocol": "ISO 20022 (pacs.002.001.12)",
+        "end_to_end_id": end_to_end_id,
+        "iso_status_code": status_report["iso_status_code"],
+        "xml_document": status_report["xml_document"],
+        "savings_realized_eur": payment["cost_analysis"]["net_savings_eur"] if payment["status"] == "SETTLED" else 0.0
+    }
+
+@app.get("/pos/iso20022/status/{end_to_end_id}")
+def get_iso20022_status(end_to_end_id: str):
+    """Restituisce lo stato attuale di un pagamento ISO 20022"""
+    if end_to_end_id not in ISO20022_PAYMENTS:
+        raise HTTPException(status_code=404, detail="Transazione non trovata")
+    return ISO20022_PAYMENTS[end_to_end_id]
+
 # --- SIMULATORE GATEWAY FINANZIARI DI PAGAMENTO (Satispay, PayPal, Crypto stablecoin Polygon) ---
 import uuid
 

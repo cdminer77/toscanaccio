@@ -309,7 +309,7 @@ def seed_db(session: Session):
             status="AVAILABLE",
             personal_data="Roberto Bianchi, CF: BNCRBT88M12E625O, Email: roberto@toscanaccio.it",
             financial_data="IT88B0987654321098765432109",
-            work_area="Ardenza & Antignano (Livorno)"
+            work_area="Livorno (LI)"
         ),
     ]
     for rider in riders:
@@ -356,7 +356,7 @@ def seed_db(session: Session):
         from datetime import datetime, timedelta
         deadlines = [
             PaymentDeadline(
-                description="Affitto Locale Via Machiavelli 102 (Casalp)",
+                description="Affitto Locale Commerciale — Livorno (LI)",
                 amount=220.00,
                 due_date=datetime.now() + timedelta(days=20),
                 status="PENDING",
